@@ -27,7 +27,7 @@ function! s:MsTestRunTest() range
 	echo "Testing [" l:test "]"
 	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 	
-	let l:testResultFile = "TestResult.trx"
+	let l:testResultFile = "TestResults.trx"
 
 	let l:containerName = glob("*.Tests")
 	let l:containerPath = l:containerName.'/bin/Local/'.l:containerName.'.dll'
