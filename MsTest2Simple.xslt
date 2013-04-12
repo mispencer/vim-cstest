@@ -25,8 +25,9 @@ Passed: <xsl:value-of select="//vs:ResultSummary/vs:Counters/@passed"/>
 	<xsl:template name="details"> 
 		<details>
 			<xsl:for-each select="//vs:Results/vs:UnitTestResult"> 
-				<test>
-					<result>
+				<xsl:if test="@outcome != 'Passed' or //vs:ResultSummary/vs:Counters/@total &lt; 2">
+					<test>
+						<result>
 T: <xsl:value-of select="@testName"/>
 <xsl:text> </xsl:text>
 <xsl:choose> 
@@ -34,16 +35,17 @@ T: <xsl:value-of select="@testName"/>
 <xsl:when test="@outcome = 'Passed'">Passed</xsl:when> 
 <xsl:otherwise>Inconclusive</xsl:otherwise> 
 </xsl:choose> 
-					</result>
-					<xsl:if test="@outcome = 'Failed'">
-						<message>
+						</result>
+						<xsl:if test="@outcome = 'Failed'">
+							<message>
 	Message: <xsl:value-of select=".//vs:Message" />
-						</message>
-						<stackTrace>
+							</message>
+							<stackTrace>
 	StackTrace: <xsl:value-of select=".//vs:StackTrace" />
-						</stackTrace>
-					</xsl:if>
-				</test>
+							</stackTrace>
+						</xsl:if>
+					</test>
+				</xsl:if>
 			</xsl:for-each> 
 		</details>
 	</xsl:template> 

@@ -1,65 +1,138 @@
-if !hasmapto('<Plug>MsTestRunTest')
-	map <buffer> <unique> <LocalLeader>t <Plug>MsTestRunTest
+if !hasmapto('<Plug>MsTestTestMethod')
+	map <buffer> <unique> <LocalLeader>tm <Plug>MsTestTestMethod
 endif
-noremap <buffer> <Plug>MsTestRunTest :MsTestRunTest<CR>
+if !hasmapto('<Plug>MsTestTestClass')
+	map <buffer> <unique> <LocalLeader>tc <Plug>MsTestTestClass
+endif
+if !hasmapto('<Plug>MsTestTestAssembly')
+	map <buffer> <unique> <LocalLeader>ta <Plug>MsTestTestAssembly
+endif
+noremap <buffer> <Plug>MsTestTestMethod :MsTestTestMethod<CR>
+noremap <buffer> <Plug>MsTestTestClass :MsTestTestClass<CR>
+noremap <buffer> <Plug>MsTestTestAssembly :MsTestTestAssembly<CR>
 
-if !exists(":MsTestRunTest") 
-	command -buffer MsTestRunTest :call <SID>MsTestRunTest()
+if !exists(":MsTestTestMethod") 
+	command -buffer MsTestTestMethod :call MsTestTestMethod()
+endif
+if !exists(":MsTestTestClass") 
+	command -buffer MsTestTestClass :call MsTestTestClass()
+endif
+if !exists(":MsTestTestAssembly") 
+	command -buffer MsTestTestAssembly :call MsTestTestAssembly()
 endif
 
 let s:xsltfile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
+let s:namespaceRegex = 'namespace\s\+\zs[a-zA-Z0-9-.]*'
+let s:classRegex = '^\s*\[TestClass\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
+let s:methodRegex = '^\s*\[TestMethod\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
-function! GetTest()
-	let l:namespace = s:FindMatch('namespace\s\+\zs[a-zA-Z0-9-.]*')
-	let l:class = s:FindMatch('^\s*\[TestClass\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*')
-	let l:method = s:FindMatch('^\s*\[TestMethod\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze(')
-	let l:test = l:namespace.'.'.l:class.'.'.l:method
-	return l:test
+function! MsTestTestClass() range
+	let [l:namespace, l:class, l:method] = s:GetTest()
+	let l:test = l:namespace.'.'.l:class
+	return s:RunTest(l:test)
 endfunction
 
-function! s:MsTestRunTest() range
+function! MsTestTestMethod() range
+	let [l:namespace, l:class, l:method] = s:GetTest()
+	let l:test = l:namespace.'.'.l:class.'.'.l:method
+	return s:RunTest(l:test)
+endfunction
+
+function! MsTestTestAssembly() range
+	let l:test = s:GetContainerName()
+	return s:RunTest(l:test)
+endfunction
+
+function! s:PreTestMake()
 	make
 	if !empty(getqflist()) 
-		return
+		return -1
 	endif
-	let l:test = GetTest()
+	return 0
+endfunction
 
-	echo "Testing [" l:test "]"
+function! s:GetTest()
+	let l:oldview = winsaveview()
+	try 
+		let l:found = search(s:classRegex, "Wbcn")
+		if l:found < 0
+			let l:found = search(s:classRegex, "wbc")
+			cursor(l:found+1)
+		endif
+
+		let l:namespace = s:FindMatch(s:namespaceRegex)
+		let l:class = s:FindMatch(s:classRegex)
+		let l:method = s:FindMatch(s:methodRegex)
+
+		return [l:namespace, l:class, l:method]
+	finally 
+		call winrestview(l:oldview)
+	endtry
+endfunction
+
+function! s:GetContainerName()
+	return glob("*.Tests")
+endfunction
+
+function! s:RunTest(test)
+	let l:pretestResult = s:PreTestMake()
+	if l:pretestResult != 0
+		return 0
+	endif
+
+	echo "Testing [" a:test "]"
 	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 	
 	let l:testResultFile = "TestResults.trx"
 
-	let l:containerName = glob("*.Tests")
-	let l:containerPath = l:containerName.'/bin/Local/'.l:containerName.'.dll'
-	"redraw | echo "[" l:containerName "] [" l:containerPath "]"
+	let l:containerName = s:GetContainerName()
+	let l:containerPath = '../'.l:containerName.'/bin/Local/'.l:containerName.'.dll'
 
-	if filereadable(l:testResultFile)
-		call delete(l:testResultFile)
+	let l:cwd = getcwd()
+	let l:containerDir = "MsTestContainer"
+	if !len(glob(l:containerDir, 1, 1)) 
+		call mkdir(l:containerDir)
 	endif
-	let l:shellcommand = "mstest.exe /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile."  /test:".l:test
-	call system(l:shellcommand)
-	"botright new
-	"setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile wrap
-	"execute "r!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
-	execute "!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
-	"let l:traces = matchlist(l:result, "in \\(.*\\):line \\(\\d\\+\\)")
-	"echo "[" l:traces "]"
-	"echo "[" l:file "][" l:line "]"
+	execute "cd ".l:containerDir
+	try
+		if filereadable(l:testResultFile)
+			call delete(l:testResultFile)
+		endif
+		let l:shellcommand = "mstest.exe /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile."  /test:".a:test
+		let l:mstextout = system(l:shellcommand)
+		if !filereadable(l:testResultFile) 
+			echo "Error[".v:shell_error."] [".l:mstextout.']'
+			return -2
+		endif
+		call system("rm -r spencer_DEVELOPER4*")
+		"botright new
+		"setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile wrap
+		"execute "r!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
+		execute "!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
+		"let l:traces = matchlist(l:result, "in \\(.*\\):line \\(\\d\\+\\)")
+		"echo "[" l:traces "]"
+		"echo "[" l:file "][" l:line "]"
+	finally
+		execute "cd ".l:cwd
+	endtry
 endfunction
 
 function! s:FindMatch(regex)
 	let l:oldview = winsaveview()
-	let l:found = search(a:regex, "Wbc")
-	"redraw | echo "[" a:regex "] [" l:found "]" | sleep 1
-	let l:result = ""
-	let l:line = ""
-	if l:found > 0
-		let l:line = getline(line('.')-1)."\n".getline('.')
-		let l:result = matchstr(l:line, a:regex)
-	endif
-	"redraw | echo "[" l:result "] [" l:line "]" | sleep 1
+	try
+		let l:found = search(a:regex, "Wbc")
+		"redraw | echo "[" a:regex "] [" l:found "]" | sleep 1
+		let l:result = ""
+		let l:line = ""
+		if l:found > 0
+			let l:line = getline(line('.')-1)."\n".getline('.')
+			let l:result = matchstr(l:line, a:regex)
+		endif
+		"redraw | echo "[" l:result "] [" l:line "]" | sleep 1
+		return l:result
 
-	call winrestview(l:oldview)
+	finally 
+		call winrestview(l:oldview)
+	endtry
 
-	return l:result
 endfunction
