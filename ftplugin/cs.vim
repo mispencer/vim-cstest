@@ -71,7 +71,11 @@ function! s:GetTest()
 endfunction
 
 function! s:GetContainerName()
-	return glob("*.Tests")
+	let l:container = glob("*.Tests", 0, 1)
+	if (empty(l:container))
+		let l:container = glob("*.Test", 0, 1)
+	endif
+	return l:container[0]
 endfunction
 
 function! s:RunTest(test)
