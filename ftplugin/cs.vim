@@ -78,19 +78,27 @@ function! s:GetContainerName()
 	return l:container[0]
 endfunction
 
+function! s:SortFileByMod(a, b) 
+	let l:aT = getftime(a:a)
+	let l:bT = getftime(a:b)
+	return l:aT == l:bT ? 0 : l:aT < l:bT ? 1 : -1
+endfunction
+
 function! s:RunTest(test)
 	let l:pretestResult = s:PreTestMake()
 	if l:pretestResult != 0
 		return 0
 	endif
-
-	echo "Testing [" a:test "]"
-	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 	
 	let l:testResultFile = "TestResults.trx"
 
 	let l:containerName = s:GetContainerName()
-	let l:containerPath = '../'.l:containerName.'/bin/Local/'.l:containerName.'.dll'
+	let l:containerDlls = glob(l:containerName."/**/".l:containerName.".dll", 0, 1)
+	let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
+	let l:containerPath = '../'.l:containerDll
+
+	echo "Testing [" a:test "][" l:containerPath "]"
+	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 
 	let l:cwd = getcwd()
 	let l:containerDir = "MsTestContainer"
