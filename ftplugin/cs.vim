@@ -46,8 +46,8 @@ endfunction
 function! s:PreTestMake()
 	make
 	if !empty(getqflist()) 
-		let l:continueAnyway = input("Continue anyway? Y/N\n", "Y");
-		if l:continueAnyway == "Y" || l:continueAnyway == 'y'
+		let l:continueAnyway = confirm("Make failed, continue anyway?", "&Yes\n&No", 1, "Question")
+		if l:continueAnyway == 1
 			return 0
 		else
 			return -1
