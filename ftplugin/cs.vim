@@ -60,9 +60,9 @@ function! s:GetTest()
 	let l:oldview = winsaveview()
 	try 
 		let l:found = search(s:classRegex, "Wbcn")
-		if l:found < 0
+		if l:found <= 0
 			let l:found = search(s:classRegex, "wbc")
-			cursor(l:found+1)
+			call cursor(l:found)
 		endif
 
 		let l:namespace = s:FindMatch(s:namespaceRegex)
