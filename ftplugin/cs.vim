@@ -125,14 +125,76 @@ function! s:RunTest(test)
 		"botright new
 		"setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile wrap
 		"execute "r!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
-		execute "!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
+		"execute "!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
 		"let l:traces = matchlist(l:result, "in \\(.*\\):line \\(\\d\\+\\)")
 		"echo "[" l:traces "]"
 		"echo "[" l:file "][" l:line "]"
+		let l:testResultText = system("xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile)
+		let l:testResults = s:ParseTestResult(l:testResultText)
+		if !empty(l:testResults)
+			if setqflist(l:testResults) != 0
+				throw "Setting quickfix list failed"
+			endif
+			"echo l:testResults
+			do QuickFixCmdPost make
+			cfirst
+		else
+			echo l:testResultText
+		endif
 	finally
 		execute "cd ".l:cwd
 	endtry
 endfunction
+
+function! s:ParseTestResult(testResultText)
+	let l:testResultLines = split(a:testResultText, "\n")
+	let l:testResults = []
+	let l:testResult = {}
+	"echo l:testResultLines
+	for l:line in l:testResultLines
+		if match(l:line, '^\(Total\|Failed\|Passed\):') >= 0
+			"echo "Skipping ".l:line
+		elseif match(l:line, '^T:') >= 0
+			if (!empty(l:testResult))
+				let l:testResult["text"] = l:testResult["test"].' '.l:testResult["output"].': '.l:testResult["message"]
+				call insert(l:testResults, l:testResult)
+			endif
+			let l:testResult = {}
+			let l:testName = matchlist(l:line, '^T: \(\w\+\)\s\(\w\+\)$')
+			if !empty(l:testName)
+				let l:testResult["test"] = l:testName[1]
+				let l:testResult["output"] = l:testName[2]
+			else
+				throw 'Could not parse ['.l:line.'] for test/result'
+			endif
+		else
+			let l:testOutput = matchlist(l:line, '^\s*\(Message\|Stacktrace\): \(.*\)$')
+			if (!empty(l:testOutput))
+				if l:testOutput[1] == "Message"
+					let l:testResult["message"] = l:testOutput[2]
+				elseif l:testOutput[1] == "Stacktrace"
+					let l:testStack = matchlist(l:testOutput[2], '.*in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)$')
+					if !empty(l:testStack)
+						let l:testResult["filename"] = l:testStack[1]
+						let l:testResult["lnum"] = l:testStack[2]
+					else
+						throw 'Could not parse ['.l:testOutput[2].'] for file/line'
+					endif
+				else
+					throw "Matched ".l:testOutput[1]."!?!"
+				endif
+			else
+				"echo "Couldn't match ".l:line
+			endif
+		endif
+	endfor
+
+	if (!empty(l:testResult))
+		let l:testResult["text"] = l:testResult["test"].' '.l:testResult["output"].': '.l:testResult["message"]
+		call insert(l:testResults, l:testResult)
+	endif
+	return l:testResults
+endfunc
 
 function! s:FindMatch(regex)
 	let l:oldview = winsaveview()
