@@ -38,10 +38,10 @@ T: <xsl:value-of select="@testName"/>
 						</result>
 						<xsl:if test="@outcome = 'Failed'">
 							<message>
-	Message: <xsl:value-of select=".//vs:Message" />
+	Message: <xsl:value-of select="normalize-space(.//vs:Message)" />
 							</message>
 							<stackTrace>
-	StackTrace: <xsl:value-of select=".//vs:StackTrace" />
+	StackTrace: <xsl:value-of select="normalize-space(.//vs:StackTrace)" />
 							</stackTrace>
 						</xsl:if>
 					</test>
