@@ -11,13 +11,13 @@ noremap <buffer> <Plug>MsTestTestMethod :MsTestTestMethod<CR>
 noremap <buffer> <Plug>MsTestTestClass :MsTestTestClass<CR>
 noremap <buffer> <Plug>MsTestTestAssembly :MsTestTestAssembly<CR>
 
-if !exists(":MsTestTestMethod") 
+if !exists(":MsTestTestMethod")
 	command -buffer MsTestTestMethod :call MsTestTestMethod()
 endif
-if !exists(":MsTestTestClass") 
+if !exists(":MsTestTestClass")
 	command -buffer MsTestTestClass :call MsTestTestClass()
 endif
-if !exists(":MsTestTestAssembly") 
+if !exists(":MsTestTestAssembly")
 	command -buffer MsTestTestAssembly :call MsTestTestAssembly()
 endif
 
@@ -45,7 +45,7 @@ endfunction
 
 function! s:PreTestMake()
 	make
-	if !empty(getqflist()) 
+	if !empty(getqflist())
 		let l:continueAnyway = confirm("Make failed, continue anyway?", "&Yes\n&No", 1, "Question")
 		if l:continueAnyway == 1
 			return 0
@@ -58,7 +58,7 @@ endfunction
 
 function! s:GetTest()
 	let l:oldview = winsaveview()
-	try 
+	try
 		let l:found = search(s:classRegex, "Wbcn")
 		if l:found <= 0
 			let l:found = search(s:classRegex, "wbc")
@@ -70,7 +70,7 @@ function! s:GetTest()
 		let l:method = s:FindMatch(s:methodRegex)
 
 		return [l:namespace, l:class, l:method]
-	finally 
+	finally
 		call winrestview(l:oldview)
 	endtry
 endfunction
@@ -83,7 +83,7 @@ function! s:GetContainerName()
 	return l:container[0]
 endfunction
 
-function! s:SortFileByMod(a, b) 
+function! s:SortFileByMod(a, b)
 	let l:aT = getftime(a:a)
 	let l:bT = getftime(a:b)
 	return l:aT == l:bT ? 0 : l:aT < l:bT ? 1 : -1
@@ -94,7 +94,7 @@ function! s:RunTest(test)
 	if l:pretestResult != 0
 		return 0
 	endif
-	
+
 	let l:testResultFile = "TestResults.trx"
 
 	let l:containerName = s:GetContainerName()
@@ -107,7 +107,7 @@ function! s:RunTest(test)
 
 	let l:cwd = getcwd()
 	let l:containerDir = "MsTestContainer"
-	if !len(glob(l:containerDir, 1, 1)) 
+	if !len(glob(l:containerDir, 1, 1))
 		call mkdir(l:containerDir)
 	endif
 	execute "cd ".l:containerDir
@@ -117,7 +117,7 @@ function! s:RunTest(test)
 		endif
 		let l:shellcommand = "mstest.exe /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile." /test:".a:test
 		let l:mstextout = system(l:shellcommand)
-		if !filereadable(l:testResultFile) 
+		if !filereadable(l:testResultFile)
 			echo "Error[".v:shell_error."] [".l:mstextout.']'
 			return -2
 		endif
@@ -148,7 +148,7 @@ function! s:FindMatch(regex)
 		"redraw | echo "[" l:result "] [" l:line "]" | sleep 1
 		return l:result
 
-	finally 
+	finally
 		call winrestview(l:oldview)
 	endtry
 
