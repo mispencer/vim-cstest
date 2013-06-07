@@ -156,14 +156,14 @@ function! s:ParseTestResult(testResultText)
 			"echo "Skipping ".l:line
 		elseif match(l:line, '^T:') >= 0
 			if (!empty(l:testResult))
-				let l:testResult["text"] = l:testResult["test"].' '.l:testResult["output"].': '.l:testResult["message"]
+				let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"].': '.l:testResult["message"]
 				call insert(l:testResults, l:testResult)
 			endif
 			let l:testResult = {}
 			let l:testName = matchlist(l:line, '^T: \(\w\+\)\s\(\w\+\)$')
 			if !empty(l:testName)
 				let l:testResult["test"] = l:testName[1]
-				let l:testResult["output"] = l:testName[2]
+				let l:testResult["result"] = l:testName[2]
 			else
 				throw 'Could not parse ['.l:line.'] for test/result'
 			endif
@@ -190,7 +190,7 @@ function! s:ParseTestResult(testResultText)
 	endfor
 
 	if (!empty(l:testResult))
-		let l:testResult["text"] = l:testResult["test"].' '.l:testResult["output"].': '.l:testResult["message"]
+		let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"].': '.l:testResult["message"]
 		call insert(l:testResults, l:testResult)
 	endif
 	return l:testResults
