@@ -115,13 +115,13 @@ function! s:RunTest(test)
 		if filereadable(l:testResultFile)
 			call delete(l:testResultFile)
 		endif
-		let l:shellcommand = "mstest.exe /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile."  /test:".a:test
+		let l:shellcommand = "mstest.exe /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile." /test:".a:test
 		let l:mstextout = system(l:shellcommand)
 		if !filereadable(l:testResultFile) 
 			echo "Error[".v:shell_error."] [".l:mstextout.']'
 			return -2
 		endif
-		call system("rm -r spencer_DEVELOPER4*")
+		call system("rm -r $USER'_'$COMPUTERNAME''*")
 		"botright new
 		"setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile wrap
 		"execute "r!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
