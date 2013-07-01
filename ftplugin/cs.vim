@@ -156,7 +156,10 @@ function! s:ParseTestResult(testResultText)
 			"echo "Skipping ".l:line
 		elseif match(l:line, '^T:') >= 0
 			if (!empty(l:testResult))
-				let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"].': '.l:testResult["message"]
+				let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"]
+				if (has_key(l:testResult, 'message'))
+					let l:testResult["text"] = l:testResult["text"].': '.l:testResult["message"]
+				endif
 				call insert(l:testResults, l:testResult)
 			endif
 			let l:testResult = {}
@@ -190,7 +193,10 @@ function! s:ParseTestResult(testResultText)
 	endfor
 
 	if (!empty(l:testResult))
-		let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"].': '.l:testResult["message"]
+		let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"]
+		if (has_key(l:testResult, 'message'))
+			let l:testResult["text"] = l:testResult["text"].': '.l:testResult["message"]
+		endif
 		call insert(l:testResults, l:testResult)
 	endif
 	return l:testResults
