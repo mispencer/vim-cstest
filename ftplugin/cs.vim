@@ -1,24 +1,24 @@
-if !hasmapto('<Plug>MsTestTestMethod')
-	map <buffer> <unique> <LocalLeader>tm <Plug>MsTestTestMethod
+if !hasmapto('<Plug>CsTestTestMethod')
+	map <buffer> <unique> <LocalLeader>tm <Plug>CsTestTestMethod
 endif
-if !hasmapto('<Plug>MsTestTestClass')
-	map <buffer> <unique> <LocalLeader>tc <Plug>MsTestTestClass
+if !hasmapto('<Plug>CsTestTestClass')
+	map <buffer> <unique> <LocalLeader>tc <Plug>CsTestTestClass
 endif
-if !hasmapto('<Plug>MsTestTestAssembly')
-	map <buffer> <unique> <LocalLeader>ta <Plug>MsTestTestAssembly
+if !hasmapto('<Plug>CsTestTestAssembly')
+	map <buffer> <unique> <LocalLeader>ta <Plug>CsTestTestAssembly
 endif
-noremap <buffer> <Plug>MsTestTestMethod :MsTestTestMethod<CR>
-noremap <buffer> <Plug>MsTestTestClass :MsTestTestClass<CR>
-noremap <buffer> <Plug>MsTestTestAssembly :MsTestTestAssembly<CR>
+noremap <buffer> <Plug>CsTestTestMethod :CsTestTestMethod<CR>
+noremap <buffer> <Plug>CsTestTestClass :CsTestTestClass<CR>
+noremap <buffer> <Plug>CsTestTestAssembly :CsTestTestAssembly<CR>
 
-if !exists(":MsTestTestMethod")
-	command -buffer MsTestTestMethod :call MsTestTestMethod()
+if !exists(":CsTestTestMethod")
+	command -buffer CsTestTestMethod :call CsTestTestMethod()
 endif
-if !exists(":MsTestTestClass")
-	command -buffer MsTestTestClass :call MsTestTestClass()
+if !exists(":CsTestTestClass")
+	command -buffer CsTestTestClass :call CsTestTestClass()
 endif
-if !exists(":MsTestTestAssembly")
-	command -buffer MsTestTestAssembly :call MsTestTestAssembly()
+if !exists(":CsTestTestAssembly")
+	command -buffer CsTestTestAssembly :call CsTestTestAssembly()
 endif
 
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
@@ -34,19 +34,19 @@ let s:mstestMethodRegex = '\_^\s*\[TestMethod\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-z
 let s:nunitClassRegex = '\_^\s*\[TestFixture\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
 let s:nunitMethodRegex = '\_^\s*\[Test\]\s*\n\%(\s*\[Explicit\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
-function! MsTestTestClass() range
+function! CsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
 	let l:test = l:namespace.'.'.l:class
 	return s:RunTest(l:test)
 endfunction
 
-function! MsTestTestMethod() range
+function! CsTestTestMethod() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
 	let l:test = l:namespace.'.'.l:class.'.'.l:method
 	return s:RunTest(l:test)
 endfunction
 
-function! MsTestTestAssembly() range
+function! CsTestTestAssembly() range
 	let l:test = s:GetContainerName()
 	return s:RunTest(l:test)
 endfunction
