@@ -21,10 +21,18 @@ if !exists(":MsTestTestAssembly")
 	command -buffer MsTestTestAssembly :call MsTestTestAssembly()
 endif
 
-let s:xsltfile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
+let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
+let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
+let s:mstestExe = "mstest.exe"
+let s:nunitExe = "/C/Program\ Files\ \(x86\)/NUnit\ 2.6.2/bin/nunit-console-x86.exe"
 let s:namespaceRegex = 'namespace\s\+\zs[a-zA-Z0-9-.]*'
-let s:classRegex = '^\s*\[TestClass\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
-let s:methodRegex = '^\s*\[TestMethod\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
+let s:nunitTestRegex = '\_^\s*using\s*NUnit'
+
+let s:mstestClassRegex = '\_^\s*\[TestClass\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
+let s:mstestMethodRegex = '\_^\s*\[TestMethod\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
+
+let s:nunitClassRegex = '\_^\s*\[TestFixture\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
+let s:nunitMethodRegex = '\_^\s*\[Test\]\s*\n\%(\s*\[Explicit\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
 function! MsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
@@ -59,15 +67,29 @@ endfunction
 function! s:GetTest()
 	let l:oldview = winsaveview()
 	try
-		let l:found = search(s:classRegex, "Wbcn")
+		let l:testStyle = s:FindTestStyle()
+		"echo "TestStyle:" . l:testStyle | sleep 1
+		let l:classRegex = ""
+		let l:methodRegex = ""
+		if l:testStyle == "mstest"
+			let l:classRegex = s:mstestClassRegex
+			let l:methodRegex = s:mstestMethodRegex
+		elseif l:testStyle == "nunit"
+			let l:classRegex = s:nunitClassRegex
+			let l:methodRegex = s:nunitMethodRegex
+		else
+			throw "Unknown test style"
+		endif
+
+		let l:found = search(l:classRegex, "Wbcn")
 		if l:found <= 0
-			let l:found = search(s:classRegex, "wbc")
+			let l:found = search(l:classRegex, "wbc")
 			call cursor(l:found)
 		endif
 
 		let l:namespace = s:FindMatch(s:namespaceRegex)
-		let l:class = s:FindMatch(s:classRegex)
-		let l:method = s:FindMatch(s:methodRegex)
+		let l:class = s:FindMatch(l:classRegex)
+		let l:method = s:FindMatch(l:methodRegex)
 
 		return [l:namespace, l:class, l:method]
 	finally
@@ -75,10 +97,34 @@ function! s:GetTest()
 	endtry
 endfunction
 
+function! s:FindTestStyle()
+	let l:oldview = winsaveview()
+	try
+		call cursor('$')
+		let l:found = search(s:nunitTestRegex, "Wbcn")
+		if l:found <= 0
+			return "mstest"
+		else
+			return "nunit"
+		endif
+	finally
+		call winrestview(l:oldview)
+	endtry
+
+endfunction
+
 function! s:GetContainerName()
 	let l:container = glob("*.Tests", 0, 1)
 	if (empty(l:container))
 		let l:container = glob("*.Test", 0, 1)
+	endif
+	if (empty(l:container))
+		let l:container = glob("*/*.Test", 0, 1)
+		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+	endif
+	if (empty(l:container))
+		let l:container = glob("*/*.Tests", 0, 1)
+		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 	endif
 	return l:container[0]
 endfunction
@@ -95,10 +141,12 @@ function! s:RunTest(test)
 		return 0
 	endif
 
-	let l:testResultFile = "TestResults.trx"
-
 	let l:containerName = s:GetContainerName()
+	"redraw | echo "[" l:containerName "]" | sleep 1
 	let l:containerDlls = glob(l:containerName."/**/".l:containerName.".dll", 0, 1)
+	if empty(l:containerDlls)
+		let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
+	endif
 	let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
 	let l:containerPath = '../'.l:containerDll
 
@@ -106,30 +154,53 @@ function! s:RunTest(test)
 	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 
 	let l:cwd = getcwd()
-	let l:containerDir = "MsTestContainer"
+	let l:containerDir = "TestContainer"
 	if !len(glob(l:containerDir, 1, 1))
 		call mkdir(l:containerDir)
 	endif
 	execute "cd ".l:containerDir
+
 	try
+		let l:testResultFile = "TestResults.xml"
+
 		if filereadable(l:testResultFile)
 			call delete(l:testResultFile)
 		endif
-		let l:shellcommand = "mstest.exe /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile." /test:".a:test
+
+		let l:shellcommand = "false"
+		let l:xsltfile = ""
+
+		let l:testStyle = s:FindTestStyle()
+		if l:testStyle == "mstest"
+			let l:shellcommand = s:mstestExe." /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile." /test:".a:test
+			let l:xsltfile = s:mstestXsltFile
+		elseif l:testStyle == "nunit"
+			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".l:containerPath." /result ".l:testResultFile." /run ".a:test
+			let l:xsltfile = s:nunitXsltFile
+		else
+			throw "Unknown test style"
+		endif
+
+		"redraw | echo "Command: " l:shellcommand | sleep 3
+
 		let l:mstextout = system(l:shellcommand)
+
+		"redraw | echo "Out: " l:mstextout | sleep 3
+
 		if !filereadable(l:testResultFile)
 			echo "Error[".v:shell_error."] [".l:mstextout.']'
 			return -2
 		endif
-		call system("rm -r $USER'_'$COMPUTERNAME''*")
-		"botright new
-		"setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile wrap
-		"execute "r!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
-		"execute "!xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile
+
+		if l:testStyle == "mstest"
+			call system("rm -r $USER'_'$COMPUTERNAME''*")
+		endif
+
 		"let l:traces = matchlist(l:result, "in \\(.*\\):line \\(\\d\\+\\)")
 		"echo "[" l:traces "]"
 		"echo "[" l:file "][" l:line "]"
-		let l:testResultText = system("xsltproc.exe -o - ".s:xsltfile." ".l:testResultFile)
+
+		let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
 		let l:testResults = s:ParseTestResult(l:testResultText)
 		if !empty(l:testResults)
 			if setqflist(l:testResults) != 0
@@ -163,7 +234,7 @@ function! s:ParseTestResult(testResultText)
 				call insert(l:testResults, l:testResult)
 			endif
 			let l:testResult = {}
-			let l:testName = matchlist(l:line, '^T: \(\w\+\)\s\(\w\+\)$')
+			let l:testName = matchlist(l:line, '^T: \([A-Za-z0-9_.-]\+\)\s\(\w\+\)$')
 			if !empty(l:testName)
 				let l:testResult["test"] = l:testName[1]
 				let l:testResult["result"] = l:testName[2]
@@ -176,7 +247,9 @@ function! s:ParseTestResult(testResultText)
 				if l:testOutput[1] == "Message"
 					let l:testResult["message"] = l:testOutput[2]
 				elseif l:testOutput[1] == "Stacktrace"
-					let l:testStack = matchlist(l:testOutput[2], '.*in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)$')
+					echo "Matching [".l:testOutput[2].']' | sleep 2
+					let l:testStack = matchlist(l:testOutput[2], '^.\{-}in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)')
+					echo "Matched [".string(l:testStack).']' | sleep 2
 					if !empty(l:testStack)
 						let l:testResult["filename"] = l:testStack[1]
 						let l:testResult["lnum"] = l:testStack[2]
@@ -209,9 +282,13 @@ function! s:FindMatch(regex)
 		"redraw | echo "[" a:regex "] [" l:found "]" | sleep 1
 		let l:result = ""
 		let l:line = ""
+		let l:count = 0
 		if l:found > 0
-			let l:line = getline(line('.')-1)."\n".getline('.')
-			let l:result = matchstr(l:line, a:regex)
+			while empty(l:result) && l:count < 10
+				let l:line = getline(line('.')-l:count)."\n".l:line
+				let l:result = matchstr(l:line, a:regex)
+				let l:count = l:count + 1
+			endwhile
 		endif
 		"redraw | echo "[" l:result "] [" l:line "]" | sleep 1
 		return l:result
