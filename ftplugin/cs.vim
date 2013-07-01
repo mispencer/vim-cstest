@@ -46,7 +46,7 @@ endfunction
 function! s:PreTestMake()
 	make
 	if !empty(getqflist())
-		let l:continueAnyway = confirm("Make failed, continue anyway?", "&Yes\n&No", 1, "Question")
+		let l:continueAnyway = confirm("Make failed, continue anyway?", "&Yes\n&No", 2, "Question")
 		if l:continueAnyway == 1
 			return 0
 		else
