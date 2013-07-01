@@ -37,18 +37,18 @@ let s:nunitMethodRegex = '\_^\s*\[Test\]\s*\n\%(\s*\[Explicit\]\s*\n\)\?\(\s\|\w
 function! CsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
 	let l:test = l:namespace.'.'.l:class
-	return s:RunTest(l:test)
+	return CsTestRunTest(l:test)
 endfunction
 
 function! CsTestTestMethod() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
 	let l:test = l:namespace.'.'.l:class.'.'.l:method
-	return s:RunTest(l:test)
+	return CsTestRunTest(l:test)
 endfunction
 
 function! CsTestTestAssembly() range
 	let l:test = s:GetContainerName()
-	return s:RunTest(l:test)
+	return CsTestRunTest(l:test)
 endfunction
 
 function! s:PreTestMake()
@@ -135,7 +135,7 @@ function! s:SortFileByMod(a, b)
 	return l:aT == l:bT ? 0 : l:aT < l:bT ? 1 : -1
 endfunction
 
-function! s:RunTest(test)
+function! CsTestRunTest(test)
 	let l:pretestResult = s:PreTestMake()
 	if l:pretestResult != 0
 		return 0
