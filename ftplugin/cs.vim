@@ -247,9 +247,9 @@ function! s:ParseTestResult(testResultText)
 				if l:testOutput[1] == "Message"
 					let l:testResult["message"] = l:testOutput[2]
 				elseif l:testOutput[1] == "Stacktrace"
-					echo "Matching [".l:testOutput[2].']' | sleep 2
+					"echo "Matching [".l:testOutput[2].']' | sleep 2
 					let l:testStack = matchlist(l:testOutput[2], '^.\{-}in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)')
-					echo "Matched [".string(l:testStack).']' | sleep 2
+					"echo "Matched [".string(l:testStack).']' | sleep 2
 					if !empty(l:testStack)
 						let l:testResult["filename"] = l:testStack[1]
 						let l:testResult["lnum"] = l:testStack[2]
