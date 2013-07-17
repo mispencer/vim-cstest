@@ -29,11 +29,12 @@ T: <xsl:value-of select="@name"/>
 <xsl:text> </xsl:text>
 <xsl:choose>
 <xsl:when test="@result = 'Error'">FAILED</xsl:when>
+<xsl:when test="@result = 'Failure'">FAILED</xsl:when>
 <xsl:when test="@result = 'Success'">Passed</xsl:when>
 <xsl:otherwise>Inconclusive</xsl:otherwise>
 </xsl:choose>
 						</result>
-						<xsl:if test="@result = 'Error'">
+						<xsl:if test="@result = 'Error' or @result = 'Failure'">
 							<message>
 	Message: <xsl:value-of select="normalize-space(.//message)" />
 							</message>
