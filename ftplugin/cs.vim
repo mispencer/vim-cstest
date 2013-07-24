@@ -128,7 +128,11 @@ function! s:SortFileByMod(a, b)
 	return l:aT == l:bT ? 0 : l:aT < l:bT ? 1 : -1
 endfunction
 
-function! CsTestRunTest(test)
+function! CsTestRunTest(...)
+	if empty(a:000)
+		throw "No tests supplied"
+	endif
+
 	let l:pretestResult = s:PreTestMake()
 	if l:pretestResult != 0
 		return 0
@@ -143,7 +147,7 @@ function! CsTestRunTest(test)
 	let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
 	let l:containerPath = '../'.l:containerDll
 
-	echo "Testing [" a:test "][" l:containerPath "]"
+	echo "Testing [" join(a:000, " - ") "][" l:containerPath "]"
 	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 
 	let l:cwd = getcwd()
@@ -165,10 +169,13 @@ function! CsTestRunTest(test)
 
 		let l:testStyle = s:FindTestStyle()
 		if l:testStyle == "mstest"
-			let l:shellcommand = s:mstestExe." /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile." /test:".a:test
+			let l:shellcommand = s:mstestExe." /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile
+			for test in a:000
+				let l:shellcommand = l:shellcommand." /test:".test
+			endfor
 			let l:xsltfile = s:mstestXsltFile
 		elseif l:testStyle == "nunit"
-			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".l:containerPath." /result ".l:testResultFile." /run ".a:test
+			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".l:containerPath." /result ".l:testResultFile." /run=".join(a:000, ',')
 			let l:xsltfile = s:nunitXsltFile
 		else
 			throw "Unknown test style"
