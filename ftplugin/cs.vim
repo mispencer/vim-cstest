@@ -98,19 +98,12 @@ function! s:GetTest()
 endfunction
 
 function! s:FindTestStyle()
-	let l:oldview = winsaveview()
-	try
-		call cursor('$')
-		let l:found = search(s:nunitTestRegex, "Wbcn")
-		if l:found <= 0
-			return "mstest"
-		else
-			return "nunit"
-		endif
-	finally
-		call winrestview(l:oldview)
-	endtry
-
+	let l:found = search(s:nunitTestRegex, "wcn")
+	if l:found <= 0
+		return "mstest"
+	else
+		return "nunit"
+	endif
 endfunction
 
 function! s:GetContainerName()
