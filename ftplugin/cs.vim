@@ -201,7 +201,7 @@ function! CsTestRunTest(...)
 		"echo "[" l:file "][" l:line "]"
 
 		let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
-		let l:testResults = s:ParseTestResult(l:testResultText)
+		let l:testResults = s:ParseTestResult(l:testResultText, l:containerName)
 		if !empty(l:testResults)
 			if setqflist(l:testResults) != 0
 				throw "Setting quickfix list failed"
@@ -217,7 +217,7 @@ function! CsTestRunTest(...)
 	endtry
 endfunction
 
-function! s:ParseTestResult(testResultText)
+function! s:ParseTestResult(testResultText, containerName)
 	let l:testResultLines = split(a:testResultText, "\n")
 	let l:testResults = []
 	let l:testResult = {}
@@ -247,14 +247,23 @@ function! s:ParseTestResult(testResultText)
 				if l:testOutput[1] == "Message"
 					let l:testResult["message"] = l:testOutput[2]
 				elseif l:testOutput[1] == "Stacktrace"
-					"echo "Matching [".l:testOutput[2].']' | sleep 2
-					let l:testStack = matchlist(l:testOutput[2], '^.\{-}in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)')
-					"echo "Matched [".string(l:testStack).']' | sleep 2
+					let l:stacktraces = split(l:testOutput[2], "at ")
+					"echo "Matching [".string(l:stacktraces).']' | sleep 2
+					let l:stacktraceIndex = match(l:stacktraces, a:containerName)
+					"echo "Matching [".l:stacktraceIndex.'] for '.a:containerName | sleep 2
+					if l:stacktraceIndex == -1
+						let l:stacktraceIndex = match(l:stacktraces, "in")
+					endif
+					let l:stacktrace = l:stacktraces[l:stacktraceIndex]
+					"echo "Matching [".l:stacktrace.']' | sleep 5
+					let l:testStack = matchlist(l:stacktrace, '^.\{-}in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)')
+					"echo "Matched [".string(l:testStack).']' | sleep 20
 					if !empty(l:testStack)
 						let l:testResult["filename"] = l:testStack[1]
 						let l:testResult["lnum"] = l:testStack[2]
+						let l:testResult["message"] = l:testResult["message"] . "\n" . l:testOutput[2]
 					else
-						throw 'Could not parse ['.l:testOutput[2].'] for file/line'
+						throw 'Could not parse ['.l:stacktrace.'] for file/line'
 					endif
 				else
 					throw "Matched ".l:testOutput[1]."!?!"
