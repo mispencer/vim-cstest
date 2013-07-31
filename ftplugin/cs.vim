@@ -52,15 +52,15 @@ function! CsTestTestAssembly() range
 endfunction
 
 function! s:PreTestMake()
+	let l:oldview = winsaveview()
 	make
 	if !empty(getqflist())
 		let l:continueAnyway = confirm("Make failed, continue anyway?", "&Yes\n&No", 2, "Question")
-		if l:continueAnyway == 1
-			return 0
-		else
+		if l:continueAnyway != 1
 			return -1
 		endif
 	endif
+	call winrestview(l:oldview)
 	return 0
 endfunction
 
