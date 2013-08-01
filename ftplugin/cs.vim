@@ -27,6 +27,7 @@ let s:mstestExe = "mstest.exe"
 let s:nunitExe = "/C/Program\ Files\ \(x86\)/NUnit\ 2.6.2/bin/nunit-console-x86.exe"
 let s:namespaceRegex = 'namespace\s\+\zs[a-zA-Z0-9-.]*'
 let s:nunitTestRegex = '\_^\s*using\s*NUnit'
+let s:mstestTestRegex = '\_^\s*using\s*Microsoft.VisualStudio.TestTools.UnitTesting'
 
 let s:mstestClassRegex = '\_^\s*\[TestClass\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
 let s:mstestMethodRegex = '\_^\s*\[TestMethod\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
@@ -99,11 +100,16 @@ endfunction
 
 function! s:FindTestStyle()
 	let l:found = search(s:nunitTestRegex, "wcn")
-	if l:found <= 0
-		return "mstest"
+	let l:result = ""
+	if l:found > 0
+		let l:result = "nunit"
 	else
-		return "nunit"
+		let l:found = search(s:mstestTestRegex, "wcn")
+		if l:found > 0
+			let l:result =  "mstest"
+		endif
 	endif
+	return l:result
 endfunction
 
 function! s:GetContainerName()
