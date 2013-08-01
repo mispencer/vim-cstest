@@ -139,6 +139,8 @@ function! CsTestRunTest(...)
 		throw "No tests supplied"
 	endif
 
+	let l:testStyle = s:FindTestStyle()
+
 	let l:pretestResult = s:PreTestMake()
 	if l:pretestResult != 0
 		return 0
@@ -173,7 +175,6 @@ function! CsTestRunTest(...)
 		let l:shellcommand = "false"
 		let l:xsltfile = ""
 
-		let l:testStyle = s:FindTestStyle()
 		if l:testStyle == "mstest"
 			let l:shellcommand = s:mstestExe." /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile
 			for test in a:000
