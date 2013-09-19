@@ -69,6 +69,44 @@ function! s:PreTestMake()
 	return 0
 endfunction
 
+function! s:GetTestClass(line, classRegex, existingIndent)
+	let l:oldview = winsaveview()
+	try
+		let l:currentLine = a:line
+		let l:loopCount = 0
+		while l:loopCount < 100
+			call cursor(l:currentLine, 0)
+			let l:parentFound = search(a:classRegex, "Wbcn")
+			"redraw | echo "CurrentLine: [" l:currentLine "], ParentFound: [" l:parentFound "]" | sleep 1
+			if l:parentFound > 0
+				let l:matchLineCount = s:FindMatchLineCount(a:classRegex)
+				"redraw | echo "MatchLineCount: [" l:matchLineCount "]" | sleep 1
+				let l:newIndent = indent(l:parentFound)
+				"redraw | echo "Line: [" a:line "][" l:parentFound "]" | sleep 1
+				"redraw | echo "Indent: [" a:existingIndent "][" l:newIndent "]" | sleep 1
+				if (l:newIndent < a:existingIndent)
+					let l:class = s:FindMatch(a:classRegex)
+					let l:grandparentTestClass = s:GetTestClass(l:parentFound-l:matchLineCount, a:classRegex, l:newIndent)
+					"redraw | echo "GrandparentTestClass: [" l:grandparentTestClass "]" | sleep 1
+					if !empty(l:grandparentTestClass)
+						let l:class = l:grandparentTestClass."+".l:class
+					endif
+					"redraw | echo "Class: [" l:class "]" | sleep 1
+					return l:class
+				else
+					let l:currentLine = l:parentFound-l:matchLineCount
+				endif
+			else
+				return ""
+			endif
+			let l:loopCount = l:loopCount + 1
+		endwhile
+		throw "LoopCountExceeded"
+	finally
+		call winrestview(l:oldview)
+	endtry
+endfunction
+
 function! s:GetTest()
 	let l:oldview = winsaveview()
 	try
@@ -88,12 +126,12 @@ function! s:GetTest()
 
 		let l:found = search(l:classRegex, "Wbcn")
 		if l:found <= 0
-			let l:found = search(l:classRegex, "wbc")
-			call cursor(l:found)
+			let l:found = search(l:classRegex, "wc")
+			call cursor(l:found, 0)
 		endif
 
 		let l:namespace = s:FindMatch(s:namespaceRegex)
-		let l:class = s:FindMatch(l:classRegex)
+		let l:class = s:GetTestClass(l:found+1, l:classRegex, 99999)
 		let l:method = s:FindMatch(l:methodRegex)
 
 		return [l:namespace, l:class, l:method]
@@ -333,6 +371,30 @@ function! s:ParseTestResult(testResultText, containerName)
 	endif
 	return l:testResults
 endfunc
+
+function! s:FindMatchLineCount(regex)
+	let l:oldview = winsaveview()
+	try
+		let l:found = search(a:regex, "Wbc")
+		"redraw | echo "[" a:regex "] [" l:found "]" | sleep 1
+		let l:result = ""
+		let l:line = ""
+		let l:count = 0
+		if l:found > 0
+			while empty(l:result) && l:count < 10
+				let l:line = getline(line('.')-l:count)."\n".l:line
+				let l:result = matchstr(l:line, a:regex)
+				let l:count = l:count + 1
+			endwhile
+		endif
+		"redraw | echo "[" l:result "] [" l:line "]" | sleep 1
+		return l:count
+
+	finally
+		call winrestview(l:oldview)
+	endtry
+
+endfunction
 
 function! s:FindMatch(regex)
 	let l:oldview = winsaveview()
