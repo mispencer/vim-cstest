@@ -52,7 +52,7 @@ function! CsTestTestMethod() range
 endfunction
 
 function! CsTestTestAssembly() range
-	let l:test = s:GetContainerName()
+	let l:test = s:GetCsProjValue("RootNamespace")
 	return CsTestRunTest(l:test)
 endfunction
 
@@ -132,6 +132,47 @@ function! s:GetContainerName()
 	return l:container[0]
 endfunction
 
+function! s:GetContainerDllPath()
+	let l:containerName = s:GetContainerName()
+	"redraw | echo "[" l:containerName "]" | sleep 1
+	let l:containerDlls = glob(l:containerName."/**/".l:containerName.".dll", 0, 1)
+	if empty(l:containerDlls)
+		let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
+	endif
+	if empty(l:containerDlls)
+		let l:assemblyName = s:GetCsProjValue("AssemblyName")
+		"redraw | echo "[" l:assemblyName "]" | sleep 1
+		let l:containerDlls = glob(l:containerName."/**/".l:assemblyName."*.dll", 0, 1)
+	endif
+	"redraw | echo "[" l:containerDlls "]" | sleep 5
+	let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
+
+	return l:containerDll
+endfunction
+
+function! s:GetCsProjValue(key)
+	let l:csproj = s:GetContainerProjectPath()
+	"redraw | echo "Csproj: [" l:csproj "]" | sleep 5
+	let l:value = substitute(system("grep ".shellescape(a:key)." ".shellescape(l:csproj)), "[ \\t\\n]*<[^>]*>[ \\t\\n]*", "", "g")
+	return l:value
+endfunction
+
+function! s:GetContainerProjectPath()
+	let l:containerName = s:GetContainerName()
+	"redraw | echo "[" l:containerName "]" | sleep 1
+	let l:csprojFiles = glob(l:containerName."/**".l:containerName.".csproj", 0, 1)
+	if empty(l:csprojFiles)
+		let l:csprojFiles = glob('*/'.l:containerName."/**".l:containerName.".csproj", 0, 1)
+	endif
+	if empty(l:csprojFiles)
+		let l:csprojFiles = glob(l:containerName."/**.csproj", 0, 1)
+	endif
+	"redraw | echo "[" l:csprojFiles "]" | sleep 5
+	let l:csproj = (sort(l:csprojFiles, "s:SortFileByMod"))[0]
+
+	return l:csproj
+endfunction
+
 function! s:SortFileByMod(a, b)
 	let l:aT = getftime(a:a)
 	let l:bT = getftime(a:b)
@@ -150,13 +191,8 @@ function! CsTestRunTest(...)
 		return 0
 	endif
 
-	let l:containerName = s:GetContainerName()
-	"redraw | echo "[" l:containerName "]" | sleep 1
-	let l:containerDlls = glob(l:containerName."/**/".l:containerName.".dll", 0, 1)
-	if empty(l:containerDlls)
-		let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
-	endif
-	let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
+	let l:containerDll = s:GetContainerDllPath()
+	let l:containerNamespace = s:GetCsProjValue("RootNamespace")
 	let l:containerPath = '../'.l:containerDll
 
 	echo "Testing [" join(a:000, " - ") "][" l:containerPath "]"
@@ -215,7 +251,7 @@ function! CsTestRunTest(...)
 		"echo "[" l:file "][" l:line "]"
 
 		let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
-		let l:testResults = s:ParseTestResult(l:testResultText, l:containerName)
+		let l:testResults = s:ParseTestResult(l:testResultText, l:containerNamespace)
 		if !empty(l:testResults)
 			if setqflist(l:testResults) != 0
 				throw "Setting quickfix list failed"
