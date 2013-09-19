@@ -21,6 +21,10 @@ if !exists(":CsTestTestAssembly")
 	command -buffer CsTestTestAssembly :call CsTestTestAssembly()
 endif
 
+if !exists("g:CsTestMstestCategoryFilter")
+	let g:CsTestMstestCategoryFilter = ""
+endif
+
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:mstestExe = "mstest.exe"
@@ -176,10 +180,13 @@ function! CsTestRunTest(...)
 		let l:xsltfile = ""
 
 		if l:testStyle == "mstest"
-			let l:shellcommand = s:mstestExe." /testcontainer:".l:containerPath." /resultsfile:".l:testResultFile
+			let l:shellcommand = s:mstestExe." /testcontainer:".shellescape(l:containerPath)." /resultsfile:".shellescape(l:testResultFile)
 			for test in a:000
-				let l:shellcommand = l:shellcommand." /test:".test
+				let l:shellcommand = l:shellcommand." /test:".shellescape(test)
 			endfor
+			if !empty(g:CsTestMstestCategoryFilter)
+				let l:shellcommand = l:shellcommand." /category:".shellescape(g:CsTestMstestCategoryFilter)
+			endif
 			let l:xsltfile = s:mstestXsltFile
 		elseif l:testStyle == "nunit"
 			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".l:containerPath." /result ".l:testResultFile." /run=".join(a:000, ',')
