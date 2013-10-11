@@ -25,6 +25,10 @@ if !exists("g:CsTestMstestCategoryFilter")
 	let g:CsTestMstestCategoryFilter = ""
 endif
 
+if !exists("g:CsTestNunitCategoryFilter")
+	let g:CsTestNunitCategoryFilter = ""
+endif
+
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:mstestExe = "mstest.exe"
@@ -264,6 +268,9 @@ function! CsTestRunTest(...)
 			let l:xsltfile = s:mstestXsltFile
 		elseif l:testStyle == "nunit"
 			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".l:containerPath." /result ".l:testResultFile." /run=".join(a:000, ',')
+			if !empty(g:CsTestNunitCategoryFilter)
+				let l:shellcommand = l:shellcommand." /include:".shellescape(g:CsTestNunitCategoryFilter)
+			endif
 			let l:xsltfile = s:nunitXsltFile
 		else
 			throw "Unknown test style"
