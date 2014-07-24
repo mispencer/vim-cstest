@@ -363,9 +363,11 @@ function! s:ParseTestResult(testResultText, containerNames)
 					let l:testResult["message"] = l:testOutput[2]
 				elseif l:testOutput[1] == "Stacktrace"
 					let l:stacktraces = split(l:testOutput[2], "at ")
-					"echo "Matching [".string(l:stacktraces).']' | sleep 2
-					let l:stacktraceIndex = match(l:stacktraces, join(a:containerNames, '|'))
-					"echo "Matching [".l:stacktraceIndex.'] for '.a:containerName | sleep 2
+					"echomsg "Matching [".string(l:stacktraces).']'
+					let l:stacktraceMatch = join(map(copy(a:containerNames), "'^'.v:val.'\\([.A-Za-z_-]\\(TestInfrastructure\\)\\@!\\)*\\([^.A-Za-z_-]\\|$\\)'"), '|')
+					"echomsg "Match [".string(l:stacktraceMatch).']'
+					let l:stacktraceIndex = match(l:stacktraces, l:stacktraceMatch)
+					"echomsg "Matching [".l:stacktraceIndex.'] for '.string(a:containerNames)
 					if l:stacktraceIndex == -1
 						let l:stacktraceIndex = match(l:stacktraces, "in")
 					endif
