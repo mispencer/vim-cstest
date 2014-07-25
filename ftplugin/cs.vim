@@ -287,7 +287,7 @@ function! CsTestRunTest(...)
 			endif
 			let l:xsltfile = s:mstestXsltFile
 		elseif l:testStyle == "nunit"
-			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".join(map(l:containerPaths, 'shellescape(v:val)'))." /result ".l:testResultFile." /run=".join(a:000, ',')
+			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".join(map(l:containerPaths, 'shellescape(v:val)'))." /out:TestOut.txt /err:TestErr.txt /result ".l:testResultFile." /run=".join(a:000, ',')
 			if !empty(g:CsTestNunitCategoryFilter)
 				let l:shellcommand = l:shellcommand." /include:".shellescape(g:CsTestNunitCategoryFilter)
 			endif
