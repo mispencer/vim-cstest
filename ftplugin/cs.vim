@@ -184,7 +184,7 @@ function! s:GetContainerDllPaths()
 			let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
 		endif
 		if empty(l:containerDlls)
-			let l:assemblyNames  = s:GetCsProjValue("AssemblyName")
+			let l:assemblyNames  = s:GetCsProjValues("AssemblyName")
 			for l:assemblyName in l:assemblyNames
 			"redraw | echo "[" l:assemblyName "]" | sleep 1
 				let l:containerDlls = glob(l:containerName."/**/".l:assemblyName."*.dll", 0, 1)
