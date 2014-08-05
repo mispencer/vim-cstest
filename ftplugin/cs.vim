@@ -7,9 +7,17 @@ endif
 if !hasmapto('<Plug>CsTestTestAssembly')
 	map <buffer> <unique> <LocalLeader>ta <Plug>CsTestTestAssembly
 endif
+if !hasmapto('<Plug>CsTestSplitTestFile')
+	map <buffer> <unique> <LocalLeader>tf <Plug>CsTestSplitTestFile
+endif
+if !hasmapto('<Plug>CsTestSplitInterfaceFile')
+	map <buffer> <unique> <LocalLeader>ti <Plug>CsTestSplitInterfaceFile
+endif
 noremap <buffer> <Plug>CsTestTestMethod :CsTestTestMethod<CR>
 noremap <buffer> <Plug>CsTestTestClass :CsTestTestClass<CR>
 noremap <buffer> <Plug>CsTestTestAssembly :CsTestTestAssembly<CR>
+noremap <buffer> <Plug>CsTestSplitTestFile :CsTestSplitTestFile<CR>
+noremap <buffer> <Plug>CsTestSplitInterfaceFile :CsTestSplitInterfaceFile<CR>
 
 if !exists(":CsTestTestMethod")
 	command -buffer CsTestTestMethod :call CsTestTestMethod()
@@ -19,6 +27,12 @@ if !exists(":CsTestTestClass")
 endif
 if !exists(":CsTestTestAssembly")
 	command -buffer CsTestTestAssembly :call CsTestTestAssembly()
+endif
+if !exists(":CsTestSplitTestFile")
+	command -buffer CsTestSplitTestFile :exec 'below' 'new' fnameescape(s:GetTestFile())
+endif
+if !exists(":CsTestSplitInterfaceFile")
+	command -buffer CsTestSplitInterfaceFile :exec 'above' 'new' fnameescape(s:GetInterfaceFile())
 endif
 
 if !exists("g:CsTestMstestCategoryFilter")
@@ -58,6 +72,14 @@ endfunction
 function! CsTestTestAssembly() range
 	let l:namespaces = s:GetCsProjValues("RootNamespace")
 	return call('CsTestRunTest', l:namespaces)
+endfunction
+
+function! CsTestGetTestFile()
+	return s:GetTestFile()
+endfunction
+
+function! CsTestGetInterfaceFile()
+	return s:GetInterfaceFile()
 endfunction
 
 function! s:PreTestMake()
@@ -153,6 +175,16 @@ function! s:FindTestStyle()
 		let l:found = search(s:mstestTestRegex, "wcn")
 		if l:found > 0
 			let l:result =  "mstest"
+		else
+			let l:testFile = s:GetTestFile()
+			try
+				exec "new" fnameescape(l:testFile)
+				try
+					return s:FindTestStyle()
+				finally
+					hide
+				endtry
+			endtry
 		endif
 	endif
 	return l:result
@@ -210,6 +242,38 @@ function! s:GetCsProjValues(key)
 		call insert(l:values, l:value)
 	endfor
 	return l:values
+endfunction
+
+function! s:GetContainerMap()
+	let l:list = s:GetContainerNames()
+	let l:dict = {}
+	for l:item in l:list
+		let l:baseName = substitute(l:item, "[.]Tests\\?$", "", "")
+		let l:dict[l:baseName] = l:item
+	endfor
+	return l:dict
+endfunction
+
+function! s:GetTestFile()
+	let l:folder = expand("%:h")
+	let l:fileRoot = expand("%:t:r")
+	let l:mappings = s:GetContainerMap()
+	for l:key in keys(l:mappings)
+		if match(l:folder, l:key) >= 0
+			let l:testFolder = substitute(l:folder, l:key, l:mappings[l:key], "")
+			if isdirectory(l:testFolder)
+				for l:testFile in glob(l:testFolder."/".l:fileRoot."*", 1, 1)
+					return l:testFile
+				endfor
+			endif
+			return l:testFolder."/".l:fileRoot."Tests.".expand("%:e")
+		endif
+	endfor
+	echoerr "Could not find a test file"
+endfunction
+
+function! s:GetInterfaceFile()
+	return expand("%:h")."/I".expand("%:t")
 endfunction
 
 function! s:GetContainerProjectPaths()
