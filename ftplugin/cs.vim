@@ -55,7 +55,7 @@ let s:mstestClassRegex = '\_^\s*\[TestClass\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-z
 let s:mstestMethodRegex = '\_^\s*\[TestMethod\]\s*\n\(\s*\/*\[TestCategory\(([^)]*)\)\?\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
 let s:nunitClassRegex = '\_^\s*\[TestFixture\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
-let s:nunitMethodRegex = '\_^\s*\[Test\]\s*\n\%(\s*\/*\[Explicit\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
+let s:nunitMethodRegex = '\_^\s*\[\%(Test\|Theory\)\]\s*\n\%(\s*\/*\[Explicit\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
 function! CsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
@@ -413,7 +413,7 @@ function! s:ParseTestResult(testResultText, containerNames)
 				call insert(l:testResults, l:testResult)
 			endif
 			let l:testResult = {}
-			let l:testName = matchlist(l:line, '^T: \([A-Za-z0-9_.-]\+\)\s\(\w\+\)$')
+			let l:testName = matchlist(l:line, '^T: \([A-Za-z0-9_.-]\+\%(([^)]*)\)\?\)\s\(\w\+\)$')
 			if !empty(l:testName)
 				let l:testResult["test"] = l:testName[1]
 				let l:testResult["result"] = l:testName[2]
@@ -428,7 +428,7 @@ function! s:ParseTestResult(testResultText, containerNames)
 				elseif l:testOutput[1] == "Stacktrace"
 					let l:stacktraces = split(l:testOutput[2], "at ")
 					"echomsg "Matching [".string(l:stacktraces).']'
-					let l:stacktraceMatch = join(map(copy(a:containerNames), "'^'.v:val.'\\([.A-Za-z_-]\\(TestInfrastructure\\)\\@!\\)*\\([^.A-Za-z_-]\\|$\\)'"), '|')
+					let l:stacktraceMatch = join(map(copy(a:containerNames), "'^'.v:val.'\\([.A-Za-z_-]\\(TestInfrastructure\\|Assert\\|Setup\\)\\@!\\)*\\([^.A-Za-z_-]\\|$\\)'"), '|')
 					"echomsg "Match [".string(l:stacktraceMatch).']'
 					let l:stacktraceIndex = match(l:stacktraces, l:stacktraceMatch)
 					"echomsg "Matching [".l:stacktraceIndex.'] for '.string(a:containerNames)
