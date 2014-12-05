@@ -46,7 +46,7 @@ endif
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:mstestExe = "mstest.exe"
-let s:nunitExe = "/C/Program\ Files\ \(x86\)/NUnit\ 2.6.2/bin/nunit-console-x86.exe"
+let s:nunitExe = "nunit-console-x86.exe"
 let s:namespaceRegex = 'namespace\s\+\zs[a-zA-Z0-9_.-]*'
 let s:nunitTestRegex = '\_^\s*using\s*NUnit'
 let s:mstestTestRegex = '\_^\s*using\s*Microsoft.VisualStudio.TestTools.UnitTesting'
