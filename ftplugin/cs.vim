@@ -43,6 +43,11 @@ if !exists("g:CsTestNunitCategoryFilter")
 	let g:CsTestNunitCategoryFilter = ""
 endif
 
+if (exists('g:cstestRunning') && g:cstestRunning == 1)
+	finish
+endif
+let g:cstestRunning = 0
+
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:mstestExe = "mstest.exe"
@@ -303,96 +308,101 @@ function! s:SortFileByMod(a, b)
 endfunction
 
 function! CsTestRunTest(...)
-	if empty(a:000)
-		throw "No tests supplied"
-	endif
-
-	let l:testStyle = s:FindTestStyle()
-
-	let l:pretestResult = s:PreTestMake()
-	if l:pretestResult != 0
-		return 0
-	endif
-
-	let l:containerPaths = s:GetContainerDllPaths()
-	let l:containerNamespaces = s:GetCsProjValues("RootNamespace")
-	call map(l:containerPaths, '"../".v:val')
-
-	echo "Testing [" join(a:000, " - ") "][" join(l:containerPaths, " - ") "]"
-	"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
-
-	let l:cwd = getcwd()
-	let l:containerDir = "TestContainer"
-	if !len(glob(l:containerDir, 1, 1))
-		call mkdir(l:containerDir)
-	endif
-	execute "cd ".l:containerDir
-
 	try
-		let l:testResultFile = "TestResults.xml"
-
-		if filereadable(l:testResultFile)
-			call delete(l:testResultFile)
+		let g:cstestRunning = 1
+		if empty(a:000)
+			throw "No tests supplied"
 		endif
 
-		let l:shellcommand = "false"
-		let l:xsltfile = ""
+		let l:testStyle = s:FindTestStyle()
 
-		if l:testStyle == "mstest"
-			let l:shellcommand = s:mstestExe." /resultsfile:".shellescape(l:testResultFile)
-			for containerPath in l:containerPaths
-				let l:shellcommand = l:shellcommand." /testcontainer:".shellescape(containerPath)
-			endfor
-			for test in a:000
-				let l:shellcommand = l:shellcommand." /test:".shellescape(test)
-			endfor
-			if !empty(g:CsTestMstestCategoryFilter)
-				let l:shellcommand = l:shellcommand." /category:".shellescape(g:CsTestMstestCategoryFilter)
+		let l:pretestResult = s:PreTestMake()
+		if l:pretestResult != 0
+			return 0
+		endif
+
+		let l:containerPaths = s:GetContainerDllPaths()
+		let l:containerNamespaces = s:GetCsProjValues("RootNamespace")
+		call map(l:containerPaths, '"../".v:val')
+
+		echo "Testing [" join(a:000, " - ") "][" join(l:containerPaths, " - ") "]"
+		"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
+
+		let l:cwd = getcwd()
+		let l:containerDir = "TestContainer"
+		if !len(glob(l:containerDir, 1, 1))
+			call mkdir(l:containerDir)
+		endif
+		execute "cd ".l:containerDir
+
+		try
+			let l:testResultFile = "TestResults.xml"
+
+			if filereadable(l:testResultFile)
+				call delete(l:testResultFile)
 			endif
-			let l:xsltfile = s:mstestXsltFile
-		elseif l:testStyle == "nunit"
-			let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".join(map(l:containerPaths, 'shellescape(v:val)'))." /out:TestOut.txt /err:TestErr.txt /result ".l:testResultFile." /run=".join(a:000, ',')
-			if !empty(g:CsTestNunitCategoryFilter)
-				let l:shellcommand = l:shellcommand." /include:".shellescape(g:CsTestNunitCategoryFilter)
+
+			let l:shellcommand = "false"
+			let l:xsltfile = ""
+
+			if l:testStyle == "mstest"
+				let l:shellcommand = s:mstestExe." /resultsfile:".shellescape(l:testResultFile)
+				for containerPath in l:containerPaths
+					let l:shellcommand = l:shellcommand." /testcontainer:".shellescape(containerPath)
+				endfor
+				for test in a:000
+					let l:shellcommand = l:shellcommand." /test:".shellescape(test)
+				endfor
+				if !empty(g:CsTestMstestCategoryFilter)
+					let l:shellcommand = l:shellcommand." /category:".shellescape(g:CsTestMstestCategoryFilter)
+				endif
+				let l:xsltfile = s:mstestXsltFile
+			elseif l:testStyle == "nunit"
+				let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".join(map(l:containerPaths, 'shellescape(v:val)'))." /out:TestOut.txt /err:TestErr.txt /result ".l:testResultFile." /run=".join(a:000, ',')
+				if !empty(g:CsTestNunitCategoryFilter)
+					let l:shellcommand = l:shellcommand." /include:".shellescape(g:CsTestNunitCategoryFilter)
+				endif
+				let l:xsltfile = s:nunitXsltFile
+			else
+				throw "Unknown test style"
 			endif
-			let l:xsltfile = s:nunitXsltFile
-		else
-			throw "Unknown test style"
-		endif
 
-		"redraw | echo "Command: " l:shellcommand | sleep 3
+			"redraw | echo "Command: " l:shellcommand | sleep 3
 
-		let l:mstextout = system(l:shellcommand)
+			let l:mstextout = system(l:shellcommand)
 
-		"redraw | echo "Out: " l:mstextout | sleep 3
+			"redraw | echo "Out: " l:mstextout | sleep 3
 
-		if !filereadable(l:testResultFile)
-			echo "Error[".v:shell_error."] [".l:mstextout.']'
-			return -2
-		endif
-
-		if l:testStyle == "mstest"
-			call system("rm -r $USER'_'$COMPUTERNAME''*")
-		endif
-
-		"let l:traces = matchlist(l:result, "in \\(.*\\):line \\(\\d\\+\\)")
-		"echo "[" l:traces "]"
-		"echo "[" l:file "][" l:line "]"
-
-		let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
-		let l:testResults = s:ParseTestResult(l:testResultText, l:containerNamespaces)
-		if !empty(l:testResults)
-			if setqflist(l:testResults) != 0
-				throw "Setting quickfix list failed"
+			if !filereadable(l:testResultFile)
+				echo "Error[".v:shell_error."] [".l:mstextout.']'
+				return -2
 			endif
-			"echo l:testResults
-			do QuickFixCmdPost make
-			cfirst
-		else
-			echo l:testResultText
-		endif
+
+			if l:testStyle == "mstest"
+				call system("rm -r $USER'_'$COMPUTERNAME''*")
+			endif
+
+			"let l:traces = matchlist(l:result, "in \\(.*\\):line \\(\\d\\+\\)")
+			"echo "[" l:traces "]"
+			"echo "[" l:file "][" l:line "]"
+
+			let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
+			let l:testResults = s:ParseTestResult(l:testResultText, l:containerNamespaces)
+			if !empty(l:testResults)
+				if setqflist(l:testResults) != 0
+					throw "Setting quickfix list failed"
+				endif
+				"echo l:testResults
+				do QuickFixCmdPost make
+				cfirst
+			else
+				echo l:testResultText
+			endif
+		finally
+			execute "cd ".l:cwd
+		endtry
 	finally
-		execute "cd ".l:cwd
+		let g:cstestRunning = 0
 	endtry
 endfunction
 
