@@ -208,6 +208,20 @@ function! s:GetContainerNames()
 		let l:container = glob("*/*.Tests", 0, 1)
 		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 	endif
+	if (empty(l:container))
+		let l:container = glob("*.UnitTests", 0, 1)
+	endif
+	if (empty(l:container))
+		let l:container = glob("*.UnitTest", 0, 1)
+	endif
+	if (empty(l:container))
+		let l:container = glob("*/*.UnitTest", 0, 1)
+		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+	endif
+	if (empty(l:container))
+		let l:container = glob("*/*.UnitTests", 0, 1)
+		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+	endif
 	return l:container
 endfunction
 
@@ -438,7 +452,7 @@ function! s:ParseTestResult(testResultText, containerNames)
 				elseif l:testOutput[1] == "Stacktrace"
 					let l:stacktraces = split(l:testOutput[2], "at ")
 					"echomsg "Matching [".string(l:stacktraces).']'
-					let l:stacktraceMatch = join(map(copy(a:containerNames), "'^'.v:val.'\\([.A-Za-z_-]\\(TestInfrastructure\\|Assert\\|Setup\\)\\@!\\)*\\([^.A-Za-z_-]\\|$\\)'"), '|')
+					let l:stacktraceMatch = join(map(copy(a:containerNames), "'^'.v:val.'\\%([.A-Za-z_-]\\%(TestInfrastructure\\|Assert\\|Setup\\)\\@!\\)*\\%([^.A-Za-z_-]\\|$\\)'"), '\|')
 					"echomsg "Match [".string(l:stacktraceMatch).']'
 					let l:stacktraceIndex = match(l:stacktraces, l:stacktraceMatch)
 					"echomsg "Matching [".l:stacktraceIndex.'] for '.string(a:containerNames)
