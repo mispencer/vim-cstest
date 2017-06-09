@@ -51,7 +51,7 @@ let g:cstestRunning = 0
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:mstestExe = "mstest.exe"
-let s:nunitExe = "nunit-console-x86.exe"
+let s:nunitExe = "nunit3-console.exe"
 let s:namespaceRegex = 'namespace\s\+\zs[a-zA-Z0-9_.-]*'
 let s:nunitTestRegex = '\_^\s*using\s*NUnit'
 let s:mstestTestRegex = '\_^\s*using\s*Microsoft.VisualStudio.TestTools.UnitTesting'
@@ -257,9 +257,12 @@ function! s:GetCsProjValues(key)
 	let l:values = []
 	for l:csproj in l:csprojs
 		"redraw | echo "Csproj: [" l:csproj "]" | sleep 5
-		let l:value = substitute(system("grep ".shellescape(a:key)." ".shellescape(l:csproj)), "[ \\t\\n]*<[^>]*>[ \\t\\n]*", "", "g")
+		let l:sysval = system("grep ".shellescape(a:key)." ".shellescape(l:csproj))
+		"redraw | echo "Out: [" l:sysval "]" | sleep 5
+		let l:value = substitute(l:sysval, "[ \\t\\n\\r]*<[^>]*>[ \\t\\n\\r]*", "", "g")
 		call insert(l:values, l:value)
 	endfor
+	"redraw | echo "Values: [" string(l:values) "]" | sleep 5
 	return l:values
 endfunction
 
@@ -372,9 +375,9 @@ function! CsTestRunTest(...)
 				endif
 				let l:xsltfile = s:mstestXsltFile
 			elseif l:testStyle == "nunit"
-				let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".join(map(l:containerPaths, 'shellescape(v:val)'))." /out:TestOut.txt /err:TestErr.txt /result ".l:testResultFile." /run=".join(a:000, ',')
+				let l:shellcommand = 'TMP= TEMP= '.shellescape(s:nunitExe)." ".join(map(l:containerPaths, 'shellescape(v:val)'))." -out TestOut.txt -err TestErr.txt -result ".l:testResultFile." -test ".join(a:000, ',')
 				if !empty(g:CsTestNunitCategoryFilter)
-					let l:shellcommand = l:shellcommand." /include:".shellescape(g:CsTestNunitCategoryFilter)
+					let l:shellcommand = l:shellcommand." -where \"cat != ".shellescape(g:CsTestNunitCategoryFilter) ."\""
 				endif
 				let l:xsltfile = s:nunitXsltFile
 			else
@@ -424,10 +427,10 @@ function! s:ParseTestResult(testResultText, containerNames)
 	let l:testResultLines = split(a:testResultText, "\n")
 	let l:testResults = []
 	let l:testResult = {}
-	"echo l:testResultLines
+	"echomsg "Lines ".string(l:testResultLines)
 	for l:line in l:testResultLines
 		if match(l:line, '^\(Total\|Failed\|Passed\):') >= 0
-			"echo "Skipping ".l:line
+			"echomsg "Skipping ".l:line
 		elseif match(l:line, '^T:') >= 0
 			if (!empty(l:testResult))
 				let l:testResult["text"] = l:testResult["test"].' '.l:testResult["result"]
@@ -460,9 +463,9 @@ function! s:ParseTestResult(testResultText, containerNames)
 						let l:stacktraceIndex = match(l:stacktraces, "in")
 					endif
 					let l:stacktrace = l:stacktraces[l:stacktraceIndex]
-					"echo "Matching [".l:stacktrace.']' | sleep 5
+					"echomsg "Matching [".l:stacktrace.']' | sleep 5
 					let l:testStack = matchlist(l:stacktrace, '^.\{-}in \([a-zA-Z]\?:\?[^:]*\):line \(\d*\)')
-					"echo "Matched [".string(l:testStack).']' | sleep 20
+					"echomsg "Matched [".string(l:testStack).']' | sleep 20
 					if !empty(l:testStack)
 						let l:testResult["filename"] = l:testStack[1]
 						let l:testResult["lnum"] = l:testStack[2]
@@ -474,7 +477,7 @@ function! s:ParseTestResult(testResultText, containerNames)
 					throw "Matched ".l:testOutput[1]."!?!"
 				endif
 			else
-				"echo "Couldn't match ".l:line
+				"echomsg "Couldn't match ".l:line
 			endif
 		endif
 	endfor

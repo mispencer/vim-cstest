@@ -22,7 +22,7 @@ Failed: <xsl:value-of select="//test-results/@errors"/>
 	<xsl:template name="details">
 		<details>
 			<xsl:for-each select="//test-case">
-				<xsl:if test="@result != 'Success' or //test-results/@total &lt; 2">
+				<xsl:if test="(@result != 'Success' and @result != 'Passed' ) or //test-results/@total &lt; 2">
 					<test>
 						<result>
 T: <xsl:value-of select="@name"/>
@@ -30,11 +30,13 @@ T: <xsl:value-of select="@name"/>
 <xsl:choose>
 <xsl:when test="@result = 'Error'">FAILED</xsl:when>
 <xsl:when test="@result = 'Failure'">FAILED</xsl:when>
+<xsl:when test="@result = 'Failed'">FAILED</xsl:when>
 <xsl:when test="@result = 'Success'">Passed</xsl:when>
+<xsl:when test="@result = 'Passed'">Passed</xsl:when>
 <xsl:otherwise>Inconclusive</xsl:otherwise>
 </xsl:choose>
 						</result>
-						<xsl:if test="@result = 'Error' or @result = 'Failure'">
+						<xsl:if test="@result = 'Error' or @result = 'Failure' or @result = 'Failed'">
 							<message>
 	Message: <xsl:value-of select="normalize-space(.//message)" />
 							</message>
