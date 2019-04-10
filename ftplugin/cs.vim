@@ -52,6 +52,18 @@ if (exists('g:cstestRunning') && g:cstestRunning == 1)
 endif
 let g:cstestRunning = 0
 
+if !exists("g:CsTest_ContainerCache")
+	let g:CsTest_ContainerCache = {}
+endif
+
+if !exists("g:CsTest_DllCache")
+	let g:CsTest_DllCache = {}
+endif
+
+if !exists("g:CsTest_CsProjValueCache")
+	let g:CsTest_CsProjValueCache = {}
+endif
+
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:xunitXsltFile = expand("<sfile>:p:h:h")."/XUnit2Simple.xslt"
@@ -71,7 +83,7 @@ let s:nunitClassRegex = '\_^\s*\[TestFixture\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-
 let s:nunitMethodRegex = '\_^\s*\[\%(Test\|Theory\)\]\s*\n\%(\s*\/*\[Explicit\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
 let s:xunitClassRegex = '\_^\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
-let s:xunitMethodRegex = '\_^\s*\[\%(Fact\|Theory\)\]\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
+let s:xunitMethodRegex = '\_^\s*\[\%(Fact\|Theory\)\]\s*\n\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
 function! CsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
@@ -149,6 +161,10 @@ function! s:GetTestClass(line, classRegex, existingIndent)
 	endtry
 endfunction
 
+function! CsTestGetTest()
+	return s:GetTest()
+endfunction
+
 function! s:GetTest()
 	let l:oldview = winsaveview()
 	try
@@ -215,56 +231,66 @@ function! s:FindTestStyle()
 endfunction
 
 function! s:GetContainerNames()
-	let l:container = glob("*.Tests*", 0, 1)
-	if (empty(l:container))
-		let l:container = glob("*.Test*", 0, 1)
+	let l:cwd = getcwd()
+	if has_key(g:CsTest_ContainerCache, l:cwd) == 1
+		return g:CsTest_ContainerCache[l:cwd]
+	else
+		let l:container = glob("*.Tests*", 0, 1)
+		if (empty(l:container))
+			let l:container = glob("*.Test*", 0, 1)
+		endif
+		if (empty(l:container))
+			let l:container = glob("*/*.Test*", 0, 1)
+			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+		endif
+		if (empty(l:container))
+			let l:container = glob("*/*.Tests*", 0, 1)
+			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+		endif
+		if (empty(l:container))
+			let l:container = glob("*.UnitTests", 0, 1)
+		endif
+		if (empty(l:container))
+			let l:container = glob("*.UnitTest", 0, 1)
+		endif
+		if (empty(l:container))
+			let l:container = glob("*/*.UnitTest", 0, 1)
+			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+		endif
+		if (empty(l:container))
+			let l:container = glob("*/*.UnitTests", 0, 1)
+			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
+		endif
+		return l:container
 	endif
-	if (empty(l:container))
-		let l:container = glob("*/*.Test*", 0, 1)
-		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
-	endif
-	if (empty(l:container))
-		let l:container = glob("*/*.Tests*", 0, 1)
-		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
-	endif
-	if (empty(l:container))
-		let l:container = glob("*.UnitTests", 0, 1)
-	endif
-	if (empty(l:container))
-		let l:container = glob("*.UnitTest", 0, 1)
-	endif
-	if (empty(l:container))
-		let l:container = glob("*/*.UnitTest", 0, 1)
-		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
-	endif
-	if (empty(l:container))
-		let l:container = glob("*/*.UnitTests", 0, 1)
-		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
-	endif
-	return l:container
 endfunction
 
 function! s:GetContainerDllPaths()
 	let l:containerNames = s:GetContainerNames()
 	let l:containerDllsResult = []
 	for l:containerName in l:containerNames
-		"redraw | echo "[" l:containerName "]" | sleep 1
-		let l:containerDlls = glob(l:containerName."/**/".l:containerName.".dll", 0, 1)
-		if empty(l:containerDlls)
-			let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
+		if has_key(g:CsTest_DllCache, l:containerName) == 1
+			let l:containerDll = g:CsTest_DllCache[l:containerName]
+		else
+			"redraw | echo "[" l:containerName "]" | sleep 1
+			let l:containerDlls = glob(l:containerName."/**/".l:containerName.".dll", 0, 1)
+			if empty(l:containerDlls)
+				let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
+			endif
+			if empty(l:containerDlls)
+				let l:assemblyNames  = s:GetCsProjValues("AssemblyName")
+				for l:assemblyName in l:assemblyNames
+				"redraw | echo "[" l:assemblyName "]" | sleep 1
+					let l:containerDlls = glob(l:containerName."/**/".l:assemblyName."*.dll", 0, 1)
+					if !empty(l:containerDlls)
+						break
+					endif
+				endfor
+			endif
+			"redraw | echo "[" l:containerDlls "]" | sleep 5
+			let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
+			let g:CsTest_DllCache[l:containerName] = l:containerDll
 		endif
-		if empty(l:containerDlls)
-			let l:assemblyNames  = s:GetCsProjValues("AssemblyName")
-			for l:assemblyName in l:assemblyNames
-			"redraw | echo "[" l:assemblyName "]" | sleep 1
-				let l:containerDlls = glob(l:containerName."/**/".l:assemblyName."*.dll", 0, 1)
-				if !empty(l:containerDlls)
-					break
-				endif
-			endfor
-		endif
-		"redraw | echo "[" l:containerDlls "]" | sleep 5
-		let l:containerDll = (sort(l:containerDlls, "s:SortFileByMod"))[0]
 		call insert(l:containerDllsResult, l:containerDll)
 	endfor
 
@@ -275,10 +301,19 @@ function! s:GetCsProjValues(key)
 	let l:csprojs = s:GetContainerProjectPaths()
 	let l:values = []
 	for l:csproj in l:csprojs
-		"redraw | echo "Csproj: [" l:csproj "]" | sleep 5
-		let l:sysval = system("grep ".shellescape(a:key)." ".shellescape(l:csproj))
-		"redraw | echo "Out: [" l:sysval "]" | sleep 5
-		let l:value = substitute(l:sysval, "[ \\t\\n\\r]*<[^>]*>[ \\t\\n\\r]*", "", "g")
+		if has_key(g:CsTest_CsProjValueCache, l:csproj) == 0
+			let g:CsTest_CsProjValueCache[l:csproj] = {}
+		endif
+		let l:cache = g:CsTest_CsProjValueCache[l:csproj]
+		if has_key(l:cache, a:key) == 1
+			let l:value = l:cache[a:key]
+		else
+			"redraw | echo "Csproj: [" l:csproj "]" | sleep 5
+			let l:sysval = system("grep ".shellescape(a:key)." ".shellescape(l:csproj))
+			"redraw | echo "Out: [" l:sysval "]" | sleep 5
+			let l:value = substitute(l:sysval, "[ \\t\\n\\r]*<[^>]*>[ \\t\\n\\r]*", "", "g")
+			let l:cache[a:key] = l:value 
+		endif
 		call insert(l:values, l:value)
 	endfor
 	"redraw | echo "Values: [" string(l:values) "]" | sleep 5
@@ -400,7 +435,13 @@ function! CsTestRunTest(...)
 				endif
 				let l:xsltfile = s:nunitXsltFile
 			elseif l:testStyle == "xunit"
-				let l:shellcommand = "dotnet vstest --Platform:x64 --ResultsDirectory:. --logger:trx;LogFileName=".shellescape(l:testResultFile)." ".join(map(l:containerPaths, 'shellescape(v:val)')).' '.shellescape("--testcasefilter:(FullyQualifiedName~".join(a:000, '|FullyQualifiedName~').')') 
+				let l:shellcommand = "dotnet vstest --Platform:x64 --ResultsDirectory:. --logger:trx;LogFileName=".shellescape(l:testResultFile)." ".join(map(l:containerPaths, 'shellescape(v:val)'))
+				"redraw | echom "Tests: " a:000 | sleep 1
+				let l:realTests = filter(copy(a:000), {idx, val -> strlen(copy(val))})
+				"redraw | echom "Tests: " l:realTests | sleep 1
+				if (len(l:realTests))
+					let l:shellcommand = l:shellcommand.' '.shellescape("--testcasefilter:(FullyQualifiedName~".join(l:realTests, '|FullyQualifiedName~').')') 
+				endif
 				"if !empty(g:CsTestXunitCategoryFilter)
 				"	let l:shellcommand = l:shellcommand." -where \"cat != ".shellescape(g:CsTestXunitCategoryFilter) ."\""
 				"endif
@@ -409,12 +450,11 @@ function! CsTestRunTest(...)
 				throw "Unknown test style"
 			endif
 
-			redraw | echom "Command: " l:shellcommand | sleep 3
+			"redraw | echom "Command: " l:shellcommand | sleep 1
 
 			let l:mstextout = system(l:shellcommand)
 
-			redraw | echo "AA" | sleep 3
-			"redraw | echo "Out: " l:mstextout | sleep 3
+			"redraw | echom "Out: " l:mstextout | sleep 1
 
 			if !filereadable(l:testResultFile)
 				echo "Error[".v:shell_error."] [".l:mstextout.']'
