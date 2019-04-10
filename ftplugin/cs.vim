@@ -43,6 +43,10 @@ if !exists("g:CsTestNunitCategoryFilter")
 	let g:CsTestNunitCategoryFilter = ""
 endif
 
+if !exists("g:CsTestXunitCategoryFilter")
+	let g:CsTestXunitCategoryFilter = ""
+endif
+
 if (exists('g:cstestRunning') && g:cstestRunning == 1)
 	finish
 endif
@@ -50,9 +54,13 @@ let g:cstestRunning = 0
 
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
+let s:xunitXsltFile = expand("<sfile>:p:h:h")."/XUnit2Simple.xslt"
+let s:xsltWindowScript = expand("<sfile>:p:h:h")."/xslt.ps1"
 let s:mstestExe = "mstest.exe"
 let s:nunitExe = "nunit3-console.exe"
+let s:xunitExe = "Xunit-console.exe"
 let s:namespaceRegex = 'namespace\s\+\zs[a-zA-Z0-9_.-]*'
+let s:xunitTestRegex = '\_^\s*using\s*Xunit'
 let s:nunitTestRegex = '\_^\s*using\s*NUnit'
 let s:mstestTestRegex = '\_^\s*using\s*Microsoft.VisualStudio.TestTools.UnitTesting'
 
@@ -61,6 +69,9 @@ let s:mstestMethodRegex = '\_^\s*\[TestMethod\]\s*\n\(\s*\/*\[TestCategory\(([^)
 
 let s:nunitClassRegex = '\_^\s*\[TestFixture\]\s*\n\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
 let s:nunitMethodRegex = '\_^\s*\[\%(Test\|Theory\)\]\s*\n\%(\s*\/*\[Explicit\]\s*\n\)\?\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
+
+let s:xunitClassRegex = '\_^\(\s\|\w\)*\s\+class\s*\zs[a-zA-Z0-9_]*'
+let s:xunitMethodRegex = '\_^\s*\[\%(Fact\|Theory\)\]\(\s\|\w\|[<>]\)*\s\+\zs[a-zA-Z0-9_]*\ze('
 
 function! CsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
@@ -151,6 +162,9 @@ function! s:GetTest()
 		elseif l:testStyle == "nunit"
 			let l:classRegex = s:nunitClassRegex
 			let l:methodRegex = s:nunitMethodRegex
+		elseif l:testStyle == "xunit"
+			let l:classRegex = s:xunitClassRegex
+			let l:methodRegex = s:xunitMethodRegex
 		else
 			throw "Unknown test style"
 		endif
@@ -177,35 +191,40 @@ function! s:FindTestStyle()
 	if l:found > 0
 		let l:result = "nunit"
 	else
-		let l:found = search(s:mstestTestRegex, "wcn")
+		let l:found = search(s:xunitTestRegex, "wcn")
 		if l:found > 0
-			let l:result =  "mstest"
+			let l:result =  "xunit"
 		else
-			let l:testFile = s:GetTestFile()
-			try
-				exec "new" fnameescape(l:testFile)
+			let l:found = search(s:mstestTestRegex, "wcn")
+			if l:found > 0
+				let l:result =  "mstest"
+			else
+				let l:testFile = s:GetTestFile()
 				try
-					return s:FindTestStyle()
-				finally
-					hide
+					exec "new" fnameescape(l:testFile)
+					try
+						return s:FindTestStyle()
+					finally
+						hide
+					endtry
 				endtry
-			endtry
+			endif
 		endif
 	endif
 	return l:result
 endfunction
 
 function! s:GetContainerNames()
-	let l:container = glob("*.Tests", 0, 1)
+	let l:container = glob("*.Tests*", 0, 1)
 	if (empty(l:container))
-		let l:container = glob("*.Test", 0, 1)
+		let l:container = glob("*.Test*", 0, 1)
 	endif
 	if (empty(l:container))
-		let l:container = glob("*/*.Test", 0, 1)
+		let l:container = glob("*/*.Test*", 0, 1)
 		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 	endif
 	if (empty(l:container))
-		let l:container = glob("*/*.Tests", 0, 1)
+		let l:container = glob("*/*.Tests*", 0, 1)
 		call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 	endif
 	if (empty(l:container))
@@ -380,14 +399,21 @@ function! CsTestRunTest(...)
 					let l:shellcommand = l:shellcommand." -where \"cat != ".shellescape(g:CsTestNunitCategoryFilter) ."\""
 				endif
 				let l:xsltfile = s:nunitXsltFile
+			elseif l:testStyle == "xunit"
+				let l:shellcommand = "dotnet vstest --Platform:x64 --ResultsDirectory:. --logger:trx;LogFileName=".shellescape(l:testResultFile)." ".join(map(l:containerPaths, 'shellescape(v:val)')).' '.shellescape("--testcasefilter:(FullyQualifiedName~".join(a:000, '|FullyQualifiedName~').')') 
+				"if !empty(g:CsTestXunitCategoryFilter)
+				"	let l:shellcommand = l:shellcommand." -where \"cat != ".shellescape(g:CsTestXunitCategoryFilter) ."\""
+				"endif
+				let l:xsltfile = s:xunitXsltFile
 			else
 				throw "Unknown test style"
 			endif
 
-			"redraw | echo "Command: " l:shellcommand | sleep 3
+			redraw | echom "Command: " l:shellcommand | sleep 3
 
 			let l:mstextout = system(l:shellcommand)
 
+			redraw | echo "AA" | sleep 3
 			"redraw | echo "Out: " l:mstextout | sleep 3
 
 			if !filereadable(l:testResultFile)
@@ -403,7 +429,11 @@ function! CsTestRunTest(...)
 			"echo "[" l:traces "]"
 			"echo "[" l:file "][" l:line "]"
 
-			let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
+			if has('win32')
+				let l:testResultText = system("powershell ".s:xsltWindowScript." ".l:xsltfile." ".l:testResultFile)
+			else
+				let l:testResultText = system("xsltproc.exe -o - ".l:xsltfile." ".l:testResultFile)
+			endif
 			let l:testResults = s:ParseTestResult(l:testResultText, l:containerNamespaces)
 			if !empty(l:testResults)
 				if setqflist(l:testResults) != 0
