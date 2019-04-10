@@ -7,6 +7,9 @@ endif
 if !hasmapto('<Plug>CsTestTestAssembly')
 	map <buffer> <unique> <LocalLeader>ta <Plug>CsTestTestAssembly
 endif
+if !hasmapto('<Plug>CsTestTestSolution')
+	map <buffer> <unique> <LocalLeader>ts <Plug>CsTestTestSolution
+endif
 if !hasmapto('<Plug>CsTestSplitTestFile')
 	map <buffer> <unique> <LocalLeader>tf <Plug>CsTestSplitTestFile
 endif
@@ -16,6 +19,7 @@ endif
 noremap <buffer> <Plug>CsTestTestMethod :CsTestTestMethod<CR>
 noremap <buffer> <Plug>CsTestTestClass :CsTestTestClass<CR>
 noremap <buffer> <Plug>CsTestTestAssembly :CsTestTestAssembly<CR>
+noremap <buffer> <Plug>CsTestTestSolution :CsTestTestSolution<CR>
 noremap <buffer> <Plug>CsTestSplitTestFile :CsTestSplitTestFile<CR>
 noremap <buffer> <Plug>CsTestSplitInterfaceFile :CsTestSplitInterfaceFile<CR>
 
@@ -27,6 +31,9 @@ if !exists(":CsTestTestClass")
 endif
 if !exists(":CsTestTestAssembly")
 	command -buffer CsTestTestAssembly :call CsTestTestAssembly()
+endif
+if !exists(":CsTestTestSolution")
+	command -buffer CsTestTestSolution :call CsTestTestSolution()
 endif
 if !exists(":CsTestSplitTestFile")
 	command -buffer CsTestSplitTestFile :exec 'below' 'new' fnameescape(s:GetTestFile())
@@ -88,18 +95,23 @@ let s:xunitMethodRegex = '\_^\s*\[\%(Fact\|Theory\)\]\s*\n\(\s\|\w\|[<>]\)*\s\+\
 function! CsTestTestClass() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
 	let l:test = l:namespace.'.'.l:class
-	return CsTestRunTest(l:test)
+	return CsTestRunTest(expand('%'), l:test)
 endfunction
 
 function! CsTestTestMethod() range
 	let [l:namespace, l:class, l:method] = s:GetTest()
 	let l:test = l:namespace.'.'.l:class.'.'.l:method
-	return CsTestRunTest(l:test)
+	return CsTestRunTest(expand('%'), l:test)
 endfunction
 
 function! CsTestTestAssembly() range
-	let l:namespaces = s:GetCsProjValues("RootNamespace")
-	return call('CsTestRunTest', l:namespaces)
+	let l:namespaces = s:GetCsProjValues(expand('%'), "RootNamespace")
+	return call('CsTestRunTest', [expand('%')] + l:namespaces)
+endfunction
+
+function! CsTestTestSolution() range
+	let l:namespaces = s:GetCsProjValues("", "RootNamespace")
+	return call('CsTestRunTest', [""] + l:namespaces)
 endfunction
 
 function! CsTestGetTestFile()
@@ -110,9 +122,14 @@ function! CsTestGetInterfaceFile()
 	return s:GetInterfaceFile()
 endfunction
 
-function! s:PreTestMake()
+function! s:PreTestMake(file)
 	let l:oldview = winsaveview()
-	make
+	let l:projectPaths = s:GetContainerProjectPaths(a:file)
+	if (len(l:projectPaths) == 1) 
+		execute("make ".join(map(l:projectPaths, "fnameescape(v:val)"), " "))
+	else
+		make
+	endif
 	if !empty(getqflist())
 		let l:continueAnyway = confirm("Make failed, continue anyway?", "&Yes\n&No", 2, "Question")
 		if l:continueAnyway != 1
@@ -230,7 +247,29 @@ function! s:FindTestStyle()
 	return l:result
 endfunction
 
-function! s:GetContainerNames()
+function! s:GetContainerNames(file)
+	let l:csprojs = s:GetAllContainerNames()
+	if strlen(a:file) > 0
+		for l:csproj in sort(copy(l:csprojs), "s:SortDesc")
+			if (stridx(a:file, l:csproj) == 0)
+				return [s:FileName("", l:csproj)]
+			endif
+		endfor
+	endif
+
+	return map(l:csprojs, function("s:FileName"))
+endfunction
+
+function! s:FileName(key, file)
+	return substitute(a:file, "[^/]*/", "", "")
+endfunction
+
+
+function! s:SortDesc(a, b)
+	return a:a == a:b ? 0 : a:a < a:b ? 1 : -1
+endfunction
+
+function! s:GetAllContainerNames()
 	let l:cwd = getcwd()
 	if has_key(g:CsTest_ContainerCache, l:cwd) == 1
 		return g:CsTest_ContainerCache[l:cwd]
@@ -241,11 +280,9 @@ function! s:GetContainerNames()
 		endif
 		if (empty(l:container))
 			let l:container = glob("*/*.Test*", 0, 1)
-			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 		endif
 		if (empty(l:container))
 			let l:container = glob("*/*.Tests*", 0, 1)
-			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 		endif
 		if (empty(l:container))
 			let l:container = glob("*.UnitTests", 0, 1)
@@ -255,18 +292,16 @@ function! s:GetContainerNames()
 		endif
 		if (empty(l:container))
 			let l:container = glob("*/*.UnitTest", 0, 1)
-			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 		endif
 		if (empty(l:container))
 			let l:container = glob("*/*.UnitTests", 0, 1)
-			call map(l:container, 'substitute(v:val, "[^/]*/", "", "")')
 		endif
 		return l:container
 	endif
 endfunction
 
-function! s:GetContainerDllPaths()
-	let l:containerNames = s:GetContainerNames()
+function! s:GetContainerDllPaths(file)
+	let l:containerNames = s:GetContainerNames(a:file)
 	let l:containerDllsResult = []
 	for l:containerName in l:containerNames
 		if has_key(g:CsTest_DllCache, l:containerName) == 1
@@ -278,7 +313,7 @@ function! s:GetContainerDllPaths()
 				let l:containerDlls = glob('*/'.l:containerName."/**/".l:containerName.".dll", 0, 1)
 			endif
 			if empty(l:containerDlls)
-				let l:assemblyNames  = s:GetCsProjValues("AssemblyName")
+				let l:assemblyNames  = s:GetCsProjValues(a:file, "AssemblyName")
 				for l:assemblyName in l:assemblyNames
 				"redraw | echo "[" l:assemblyName "]" | sleep 1
 					let l:containerDlls = glob(l:containerName."/**/".l:assemblyName."*.dll", 0, 1)
@@ -297,8 +332,8 @@ function! s:GetContainerDllPaths()
 	return l:containerDllsResult
 endfunction
 
-function! s:GetCsProjValues(key)
-	let l:csprojs = s:GetContainerProjectPaths()
+function! s:GetCsProjValues(file, key)
+	let l:csprojs = s:GetContainerProjectPaths(a:file)
 	let l:values = []
 	for l:csproj in l:csprojs
 		if has_key(g:CsTest_CsProjValueCache, l:csproj) == 0
@@ -320,8 +355,8 @@ function! s:GetCsProjValues(key)
 	return l:values
 endfunction
 
-function! s:GetContainerMap()
-	let l:list = s:GetContainerNames()
+function! s:GetContainerMap(file)
+	let l:list = s:GetContainerNames(a:file)
 	let l:dict = {}
 	for l:item in l:list
 		let l:baseName = substitute(l:item, "[.]Tests\\?$", "", "")
@@ -333,7 +368,7 @@ endfunction
 function! s:GetTestFile()
 	let l:folder = expand("%:h")
 	let l:fileRoot = expand("%:t:r")
-	let l:mappings = s:GetContainerMap()
+	let l:mappings = s:GetContainerMap(l:folder)
 	for l:key in keys(l:mappings)
 		if match(l:folder, l:key) >= 0
 			let l:testFolder = substitute(l:folder, l:key, l:mappings[l:key], "")
@@ -352,8 +387,8 @@ function! s:GetInterfaceFile()
 	return expand("%:h")."/I".expand("%:t")
 endfunction
 
-function! s:GetContainerProjectPaths()
-	let l:containerNames = s:GetContainerNames()
+function! s:GetContainerProjectPaths(file)
+	let l:containerNames = s:GetContainerNames(a:file)
 	let l:csprojFilesResult = []
 	for l:containerName in l:containerNames
 		"redraw | echo "[" l:containerName "]" | sleep 1
@@ -378,7 +413,7 @@ function! s:SortFileByMod(a, b)
 	return l:aT == l:bT ? 0 : l:aT < l:bT ? 1 : -1
 endfunction
 
-function! CsTestRunTest(...)
+function! CsTestRunTest(file, ...)
 	try
 		let g:cstestRunning = 1
 		if empty(a:000)
@@ -387,13 +422,13 @@ function! CsTestRunTest(...)
 
 		let l:testStyle = s:FindTestStyle()
 
-		let l:pretestResult = s:PreTestMake()
+		let l:pretestResult = s:PreTestMake(a:file)
 		if l:pretestResult != 0
 			return 0
 		endif
 
-		let l:containerPaths = s:GetContainerDllPaths()
-		let l:containerNamespaces = s:GetCsProjValues("RootNamespace")
+		let l:containerPaths = s:GetContainerDllPaths(a:file)
+		let l:containerNamespaces = s:GetCsProjValues(a:file, "RootNamespace")
 		call map(l:containerPaths, '"../".v:val')
 
 		echo "Testing [" join(a:000, " - ") "][" join(l:containerPaths, " - ") "]"
@@ -451,13 +486,15 @@ function! CsTestRunTest(...)
 			endif
 
 			"redraw | echom "Command: " l:shellcommand | sleep 1
+			let g:CsTest_LastCommand = l:shellcommand
 
-			let l:mstextout = system(l:shellcommand)
+			let l:testout = system(l:shellcommand)
 
-			"redraw | echom "Out: " l:mstextout | sleep 1
+			let g:CsTest_LastOut = l:testout
+			"redraw | echom "Out: " l:testout | sleep 1
 
 			if !filereadable(l:testResultFile)
-				echo "Error[".v:shell_error."] [".l:mstextout.']'
+				echo "Error[".v:shell_error."] [".l:testout.']'
 				return -2
 			endif
 
