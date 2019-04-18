@@ -71,6 +71,13 @@ if !exists("g:CsTest_CsProjValueCache")
 	let g:CsTest_CsProjValueCache = {}
 endif
 
+function CsTestClearCache()
+	let g:CsTest_DllCache = {}
+	let g:CsTest_ContainerCache = {}
+	let g:CsTest_DllCache = {}
+	let g:CsTest_CsProjValueCache = {}
+endfunction
+
 let s:mstestXsltFile = expand("<sfile>:p:h:h")."/MsTest2Simple.xslt"
 let s:nunitXsltFile = expand("<sfile>:p:h:h")."/NUnit2Simple.xslt"
 let s:xunitXsltFile = expand("<sfile>:p:h:h")."/XUnit2Simple.xslt"
@@ -343,10 +350,15 @@ function! s:GetCsProjValues(file, key)
 		if has_key(l:cache, a:key) == 1
 			let l:value = l:cache[a:key]
 		else
-			"redraw | echo "Csproj: [" l:csproj "]" | sleep 5
-			let l:sysval = system("grep ".shellescape(a:key)." ".shellescape(l:csproj))
-			"redraw | echo "Out: [" l:sysval "]" | sleep 5
+			"redraw | echom "Csproj: [" l:csproj "][" a:key "]" | sleep 2
+			if has('win32')
+				let l:sysval = system("powershell cat ".shellescape(l:csproj).' "|" Select-String -Pattern ' .shellescape(a:key))
+			else
+				let l:sysval = system("grep ".shellescape(a:key)." ".shellescape(l:csproj))
+			endif
+			"redraw | echom "Out: [" l:sysval "]" | sleep 2
 			let l:value = substitute(l:sysval, "[ \\t\\n\\r]*<[^>]*>[ \\t\\n\\r]*", "", "g")
+			"redraw | echom "Value: [" l:value "]" | sleep 2
 			let l:cache[a:key] = l:value 
 		endif
 		call insert(l:values, l:value)
@@ -432,6 +444,7 @@ function! CsTestRunTest(file, ...)
 		call map(l:containerPaths, '"../".v:val')
 
 		echo "Testing [" join(a:000, " - ") "][" join(l:containerPaths, " - ") "]"
+		"echom "[" join(l:containerNamespaces) "]"
 		"redraw | echo "[" l:namespace "] [" l:class "] [" l:method "] [" l:test "]" | sleep 1
 
 		let l:cwd = getcwd()
@@ -446,6 +459,12 @@ function! CsTestRunTest(file, ...)
 
 			if filereadable(l:testResultFile)
 				call delete(l:testResultFile)
+			endif
+			if l:testStyle == "xunit"
+				let l:testFiles = glob(fnamemodify(l:testResultFile, ':r').'*', 0, 1)
+				for file in l:testFiles
+					call delete(file)
+				endfor
 			endif
 
 			let l:shellcommand = "false"
@@ -470,7 +489,7 @@ function! CsTestRunTest(file, ...)
 				endif
 				let l:xsltfile = s:nunitXsltFile
 			elseif l:testStyle == "xunit"
-				let l:shellcommand = "dotnet vstest --Platform:x64 --ResultsDirectory:. --logger:trx;LogFileName=".shellescape(l:testResultFile)." ".join(map(l:containerPaths, 'shellescape(v:val)'))
+				let l:shellcommand = "dotnet vstest --Platform:x64 --ResultsDirectory:. --logger:trx;LogFileName=".l:testResultFile." ".join(map(l:containerPaths, 'shellescape(v:val)'))
 				"redraw | echom "Tests: " a:000 | sleep 1
 				let l:realTests = filter(copy(a:000), {idx, val -> strlen(copy(val))})
 				"redraw | echom "Tests: " l:realTests | sleep 1
@@ -492,6 +511,11 @@ function! CsTestRunTest(file, ...)
 
 			let g:CsTest_LastOut = l:testout
 			"redraw | echom "Out: " l:testout | sleep 1
+
+			if l:testStyle == "xunit"
+				let l:testFiles = glob(fnamemodify(l:testResultFile, ':r').'*', 0, 1)
+				let l:testResultFile = (sort(l:testFiles, "s:SortFileByMod"))[0]
+			endif
 
 			if !filereadable(l:testResultFile)
 				echo "Error[".v:shell_error."] [".l:testout.']'
@@ -547,7 +571,7 @@ function! s:ParseTestResult(testResultText, containerNames)
 				call insert(l:testResults, l:testResult)
 			endif
 			let l:testResult = {}
-			let l:testName = matchlist(l:line, '^T: \([A-Za-z0-9_.-]\+\%(([^)]*)\)\?\)\s\(\w\+\)$')
+			let l:testName = matchlist(l:line, '^T: \([A-Za-z0-9_.+-]\+\%(([^)]*)\)\?\)\s\(\w\+\)$')
 			if !empty(l:testName)
 				let l:testResult["test"] = l:testName[1]
 				let l:testResult["result"] = l:testName[2]
@@ -567,7 +591,7 @@ function! s:ParseTestResult(testResultText, containerNames)
 					let l:stacktraceIndex = match(l:stacktraces, l:stacktraceMatch)
 					"echomsg "Matching [".l:stacktraceIndex.'] for '.string(a:containerNames)
 					if l:stacktraceIndex == -1
-						let l:stacktraceIndex = match(l:stacktraces, "in")
+						let l:stacktraceIndex = match(l:stacktraces, "in ")
 					endif
 					let l:stacktrace = l:stacktraces[l:stacktraceIndex]
 					"echomsg "Matching [".l:stacktrace.']' | sleep 5
